@@ -61,6 +61,9 @@
         <button data-view="suspend">
           ⛔ Suspend ID
         </button>
+        <button data-view="notifications">
+          🔔 Notifications
+        </button>
         <button data-view="notice">
           ⚑ Notice
         </button>
@@ -518,7 +521,7 @@
                 Select Reliever
                 <select id="relieverStaff" required>
                   <option value="">
-                    Select Guard / Supervisor
+                    Select Officer / Supervisor / Guard
                   </option>
                 </select>
               </label>
@@ -558,7 +561,7 @@
           </div>
           <div class="panel table-wrap">
             <h3>
-              All Selectable Guard / Supervisor
+              All Selectable Officer / Supervisor / Guard
             </h3>
             <table>
               <thead>
@@ -783,6 +786,7 @@
               </button>
             </div>
           </div>
+<div class="panel" style="margin-bottom:18px"><h3>📝 Manual Attendance</h3><form id="manualAttendanceForm" class="grid-form"><label>Staff ID<input id="manualAttendanceId" required placeholder="Enter Staff ID"></label><label>Date<input id="manualAttendanceDate" type="date" required></label><button class="action" type="submit">✓ Mark Present</button></form><div id="manualAttendanceMsg" class="status"></div></div>
           <div class="panel table-wrap">
             <table class="daily-attendance-table">
               <thead>
@@ -879,7 +883,7 @@
                 Fine Amount
                 <input id="fineAmount" name="amount" type="number" min="1" step="1" placeholder="Enter amount or use selected amount" required>
               </label>
-              <button class="action danger">
+<div class="fine-camera" style="grid-column:1/-1;padding:12px;border:1px solid #d7e3f0;border-radius:12px"><b>📷 Fine Photo</b><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"><video id="fineCamera" autoplay playsinline style="width:260px;max-width:100%;border-radius:10px;background:#111"></video><img id="finePreview" alt="Captured fine" style="width:260px;max-width:100%;display:none;border-radius:10px"></div><input type="hidden" id="finePhoto" name="photo"><div class="actions"><button type="button" id="startFineCamera">Start Camera</button><button type="button" class="secondary" id="captureFinePhoto">Capture Photo</button></div></div>              <button class="action danger">
                 Apply Fine
               </button>
             </form>
@@ -1385,6 +1389,11 @@
           </div>
         </section>
         <!-- END SECTION: SECTION -->
+
+        <section id="notifications" class="view hidden">
+          <h2>🔔 Notifications</h2>
+          <div class="panel"><div id="notificationRows"><p class="muted-note">Loading notifications…</p></div></div>
+        </section>
         <section id="notice" class="view hidden">
           <h2>
             Notice Section

@@ -43,11 +43,17 @@
         <button data-view="account">
           ◉ My Account
         </button>
+        <button data-view="my-locations">
+          📍 My Assigned Locations
+        </button>
         <button data-view="team-management">
           👤 Officer Management
         </button>
         <button data-view="fine">
           ⚠ Fine Guard / Supervisor
+        </button>
+        <button data-view="notifications">
+          🔔 Notifications
         </button>
         <button data-view="notice">
           ⚑ Notice
@@ -435,6 +441,7 @@
           </div>
         </section>
         <!-- END SECTION: SECTION -->
+        <section id="my-locations" class="view hidden"><h2>📍 My Assigned Locations</h2><div class="panel"><p>Sirf wahi locations aur un locations ki Supervisor/Guard attendance yahan manage hogi jo Master Admin/Admin ne assign ki hain.</p><div id="myLocationCards" class="role-lists"></div></div></section>
         <section id="team-management" class="view hidden">
           <h2>
             Officer Management
@@ -743,6 +750,11 @@
           </div>
         </section>
         <!-- END SECTION: SECTION -->
+
+        <section id="notifications" class="view hidden">
+          <h2>🔔 Notifications</h2>
+          <div class="panel"><div id="notificationRows"><p class="muted-note">Loading notifications…</p></div></div>
+        </section>
         <section id="notice" class="view hidden">
           <h2>
             Notice Section

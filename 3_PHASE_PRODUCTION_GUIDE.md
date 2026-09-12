@@ -22,8 +22,8 @@
 - profile update sheet export
 - mobile-friendly staff screens
 
-## Fresh Production Database
-No demo database, demo staff records, demo exports or demo seed files are included. A fresh database bootstraps only the Master Admin account `adi123` with password `sndf1234`.
+## Demo Data
+Demo database, demo exports and demo seed files were removed from this package.
 The application can create/use its database when started.
 
 ## Code readability

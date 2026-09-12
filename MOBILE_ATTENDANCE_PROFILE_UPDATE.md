@@ -19,13 +19,12 @@
 ## Fresh deployment
 The ZIP contains no `sndf.db` demo database. If Railway Volume already contains old demo data, deleting the ZIP does NOT delete the existing Volume database. Clear/replace that database only once before production.
 
-## Master Admin bootstrap
-A fresh database creates only the permanent Master Admin account:
-- Role: Master Admin
-- ID: `adi123`
-- Password: `sndf1234`
+## Admin bootstrap
+Fresh database defaults to:
+- ID: admin
+- Password: adi2026
 
-No Admin, Field Officer, Officer, Supervisor or Guard demo accounts are bundled. Create real accounts from the Master Admin dashboard.
+For production, set `ADMIN_ID`, `ADMIN_PASSWORD`, and `ADMIN_NAME` in Railway Variables before launch.
 
 
 ## Admin Attendance Detail Update

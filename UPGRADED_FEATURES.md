@@ -1,7 +1,7 @@
 # SNDF Management – Upgraded Build
 
 ## Added
-- Secure password hashing with bcryptjs. Passwords are stored as bcrypt hashes.
+- Secure password hashing with bcryptjs. Existing plain demo passwords are migrated to bcrypt on first successful login.
 - Admin Reports & Audit dashboard.
 - Audit log for login, staff create/edit/delete, password change, attendance check-in/out, fine, advance, payment, notice, help and suspension actions.
 - Audit CSV download.
@@ -30,11 +30,6 @@ in Railway Variables before public launch.
 
 The system still uses the existing frontend header-based API session architecture; for a high-security production deployment, replace it with server-side sessions/JWT + HTTPS-only cookies.
 
-## Master Admin Login
-- Role: Master Admin
-- ID: `adi123`
-- Password: `sndf1234`
-
 
 ## 2026-09-06 Profile, Attendance & Reliever Update
 
@@ -49,4 +44,4 @@ The system still uses the existing frontend header-based API session architectur
 - Added Reliever Management for Admin: mark Guard/Supervisor as Reliever, change location, and check in the selected Reliever.
 - Added Supervisor → My Guards Attendance with daily and monthly Guard attendance.
 - Fine Amount now supports multi-select predefined amounts; backend records the combined total.
-- Database migration adds all new profile and reliever fields automatically; no demo database is bundled.
+- Database migration adds all new profile and reliever fields automatically, and the included demo DB is pre-migrated.

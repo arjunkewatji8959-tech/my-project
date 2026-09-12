@@ -10,7 +10,7 @@ This build is prepared to keep the SQLite database on a Railway persistent Volum
 5. Attach one Railway Volume to the service.
 6. Set the Volume Mount Path to: `/app/data`
 7. Railway will provide `RAILWAY_VOLUME_MOUNT_PATH`; the app stores `sndf.db` at `/app/data/sndf.db`.
-8. The fresh database bootstraps only Master Admin: ID `adi123`, password `sndf1234`. Do not commit `.env`.
+8. Set these variables in Railway: `ADMIN_ID`, `ADMIN_PASSWORD`, `ADMIN_NAME`. Do not commit `.env`.
 9. The server listens on Railway's `PORT` automatically.
 
 ## Important

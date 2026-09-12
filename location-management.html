@@ -24,6 +24,9 @@
       .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}button{border:0;border-radius:8px;padding:11px 16px;background:#1764b5;color:#fff;cursor:pointer}button.secondary{background:#667085}button.danger{background:#b42318}button:disabled{opacity:.65;cursor:not-allowed}
       .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{padding:11px;border-bottom:1px solid #e5eaf0;text-align:left;white-space:nowrap}th{background:#f7faff}.msg{font-weight:700;margin-top:10px;min-height:20px}.muted{color:#667085}
       @media(max-width:760px){.mobile-toggle{display:block}.layout{display:block}.sidebar{display:none;width:100%}.sidebar.open{display:block}.grid{grid-template-columns:1fr}.main{padding:14px}.actions button{flex:1 1 150px}}
+    
+      .assign-grid{display:grid;grid-template-columns:1fr 1.5fr;gap:18px}.check-list{max-height:360px;overflow:auto;border:1px solid #d7e3f0;border-radius:10px}.check-row{display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;padding:12px;border-bottom:1px solid #e8eef5}.check-row:last-child{border-bottom:0}.check-row input{width:20px;height:20px}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#e8f3ff;color:#1764b5;font-size:12px;font-weight:700}.assign-table td{white-space:normal}
+      @media(max-width:760px){.assign-grid{grid-template-columns:1fr}}
     </style>
   </head>
   <body>
@@ -239,6 +242,22 @@
           </div>
         </section>
         <!-- END SECTION: SECTION -->
+
+        <!-- LOCATION ASSIGNMENT -->
+        <section class="card">
+          <h2>🔐 Location Assignment</h2>
+          <p class="muted">Puri active locations yahan dikhenगी. Location ke saamne tick karke Field Officer/Officer select karein aur Assign button dabayein. Ek staff ko multiple locations assign ki ja sakti hain.</p>
+          <div class="assign-grid">
+            <div>
+              <div class="field"><label>Field Officer / Officer ID</label><select id="assignStaff"><option value="">Select Staff ID</option></select></div>
+              <div class="actions"><button type="button" id="assignLocationsBtn">✓ Assign Selected Locations</button><button type="button" class="secondary" id="clearLocationTicks">Clear Ticks</button></div>
+              <div id="assignMsg" class="msg"></div>
+            </div>
+            <div class="check-list" id="assignLocationList"><div class="check-row"><span>…</span><span>Loading locations</span></div></div>
+          </div>
+          <h3>Current Assignments</h3>
+          <div class="table-wrap"><table class="assign-table"><thead><tr><th>Location</th><th>Location Code</th><th>Assigned Staff</th><th>Role</th></tr></thead><tbody id="assignmentRows"><tr><td colspan="4">Loading…</td></tr></tbody></table></div>
+        </section>
       </main>
       <!-- END SECTION: MAIN -->
     </div>
@@ -543,10 +562,31 @@
       dutyHoursInput.value =
         (dutyShiftInput.value === '8_hour' ? 8 : 12) + ' Hours';
 
+
+      async function loadAssignments(){
+        const list=$('assignLocationList'), staff=$('assignStaff'), rows=$('assignmentRows');
+        try{
+          const [locs,assignments,staffRows]=await Promise.all([
+            apiJson('/api/locations',{headers}),apiJson('/api/location-assignments',{headers}),apiJson('/api/staff',{headers})
+          ]);
+          const eligible=(staffRows||[]).filter(x=>['field_officer','officer'].includes(x.role)&&x.status==='active');
+          staff.innerHTML='<option value="">Select Field Officer / Officer</option>'+eligible.map(x=>`<option value="${esc(x.staff_id)}">${esc(x.staff_id)} — ${esc(x.name)} (${esc(x.role)})</option>`).join('');
+          list.innerHTML=(locs||[]).filter(x=>x.active).map(x=>{const ids=(assignments||[]).filter(a=>Number(a.location_id)===Number(x.id)).map(a=>esc(a.staff_id)).join(', ')||'Unassigned';return `<label class="check-row"><input type="checkbox" value="${Number(x.id)}"><span><b>${esc(x.code)}</b> — ${esc(x.name)}<br><small>${esc(x.address||'')}</small><br><span class="badge">Field/Officer ID: ${ids}</span></span><span class="badge">${Number(x.duty_hours)===8?8:12}H</span></label>`}).join('')||'<div class="check-row">No active locations</div>';
+          rows.innerHTML=(assignments||[]).map(x=>`<tr><td>${esc(x.location_name)}</td><td><b>${esc(x.location_code)}</b></td><td>${esc(x.staff_name)}<br><small>${esc(x.staff_id)}</small></td><td>${esc(x.staff_role)}</td></tr>`).join('')||'<tr><td colspan="4">No assignments yet.</td></tr>';
+        }catch(e){list.innerHTML='<div class="check-row">'+esc(e.message)+'</div>'}
+      }
+      $('assignLocationsBtn').addEventListener('click',async()=>{
+        const staff=$('assignStaff').value, ids=[...document.querySelectorAll('#assignLocationList input:checked')].map(x=>Number(x.value));
+        if(!staff)return alert('Select Field Officer / Officer'); if(!ids.length)return alert('Tick at least one location');
+        try{const r=await apiJson('/api/location-assignments',{method:'POST',headers,body:JSON.stringify({staff_id:staff,location_ids:ids})});$('assignMsg').textContent='✅ '+r.message;loadAssignments();}catch(e){$('assignMsg').textContent='❌ '+e.message}
+      });
+      $('clearLocationTicks').addEventListener('click',()=>document.querySelectorAll('#assignLocationList input').forEach(x=>x.checked=false));
+
       // -----------------------------------------------------
       // SECTION: INITIAL LOAD
       // -----------------------------------------------------
       loadLocations();
+      loadAssignments();
 
       // =====================================================
       // END LOCATION MANAGEMENT JAVASCRIPT

@@ -546,6 +546,10 @@ function downloadUrl(path,filename){
 
 fillAutoAttendance(); getLiveGPS(); startLiveCamera();
 $('#fineReason')?.addEventListener('change',e=>{const opt=e.target.selectedOptions[0];const amount=opt?.dataset?.amount||'';const x=$('#fineAmount');if(x && amount)x.value=amount;const custom=$('#fineCustomReason');if(custom && e.target.value)custom.value='';});
+
+let fineStream=null;
+$('#startFineCamera')?.addEventListener('click',async()=>{try{fineStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});$('#fineCamera').srcObject=fineStream;}catch(e){alert('Camera permission required: '+e.message)}});
+$('#captureFinePhoto')?.addEventListener('click',()=>{const v=$('#fineCamera'),c=document.createElement('canvas');if(!v.videoWidth)return alert('Start camera first');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);const data=c.toDataURL('image/jpeg',.82);$('#finePhoto').value=data;$('#finePreview').src=data;$('#finePreview').style.display='block';if(fineStream){fineStream.getTracks().forEach(t=>t.stop());fineStream=null;}msg('Fine photo captured ✓')});
 $$('form[data-type]').forEach(form=>form.addEventListener('submit',async e=>{
   e.preventDefault();
   const d=Object.fromEntries(new FormData(form));
@@ -568,6 +572,7 @@ $$('form[data-type]').forEach(form=>form.addEventListener('submit',async e=>{
   }catch(err){alert(err.message)}
 }));
 $('#pointTransferForm')?.addEventListener('submit',async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));try{await api('/point-transfers',{method:'POST',body:JSON.stringify(d)});msg('Point transfer request sent to Admin');e.target.reset();loadPointTransfers();}catch(err){alert(err.message)}});
+$('#manualAttendanceForm')?.addEventListener('submit',async e=>{e.preventDefault();const d={staff_id:$('#manualAttendanceId').value.trim(),date:$('#manualAttendanceDate').value};try{const r=await api('/attendance/manual',{method:'POST',body:JSON.stringify(d)});$('#manualAttendanceMsg').textContent='✓ '+r.message;e.target.reset();refresh()}catch(err){$('#manualAttendanceMsg').textContent='❌ '+err.message}});
 $('#directPointTransferForm')?.addEventListener('submit',async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!confirm(`Change point for Staff ID ${d.staff_id} to ${d.to_location}?`))return;try{const r=await api('/point-transfers/direct',{method:'PUT',body:JSON.stringify(d)});msg(r.message||'Point changed successfully');e.target.reset();loadPointTransfers();refresh();}catch(err){alert(err.message)}});
 ['front','back','left','right'].forEach(k=>{
   $('#p_photo_'+k+'_file')?.addEventListener('change',e=>{
@@ -761,6 +766,18 @@ async function loadRelievers(){
 }
 
 // END SECTION: FUNCTION loadRelievers
+
+// =====================================================
+// SECTION: FUNCTION loadNotifications
+// =====================================================
+async function loadNotifications(){
+  const box=$('#notificationRows'); if(!box)return;
+  try{const rows=await api('/notifications'); box.innerHTML=rows.length?rows.map(n=>`<div class="panel" style="margin-bottom:10px;border-left:4px solid #1764b5"><b>${escape(n.title)}</b><p>${escape(n.message)}</p><small>${escape(n.created_at||'')}</small></div>`).join(''):'<p class="muted-note">No notifications.</p>';
+  }catch(e){box.innerHTML='<p class="muted-note">'+escape(e.message)+'</p>'}
+}
+loadNotifications();
+// END SECTION: FUNCTION loadNotifications
+
 
 $('#markRelieverBtn')?.addEventListener('click',async()=>{
   const id=$('#relieverStaff')?.value;if(!id)return alert('Select Guard/Supervisor first');
@@ -1076,3 +1093,7 @@ $('#downloadAuditReport')?.addEventListener('click',()=>downloadUrl('/audit-logs
 $('#downloadPayrollReport')?.addEventListener('click',()=>{const m=$('#reportMonth')?.value||new Date().toISOString().slice(0,7);downloadUrl('/reports/payroll/export?month='+encodeURIComponent(m),'sndf-payroll-'+m+'.csv')});
 
 $('#logout')?.addEventListener('click',()=>{sessionStorage.removeItem('sndfUser');location.replace('login.html')});
+
+
+async function loadMyAssignedLocations(){const box=$('#myLocationCards');if(!box)return;try{const locs=await api('/my-locations');box.innerHTML=locs.length?locs.map(l=>`<div class="panel"><h3>📍 ${escape(l.code)} — ${escape(l.name)}</h3><p>${escape(l.address||'')}</p><b>${Number(l.duty_hours)===8?8:12} Hours Duty</b></div>`).join(''):'<p class="muted-note">No locations assigned yet.</p>'}catch(e){box.innerHTML='<p>'+escape(e.message)+'</p>'}}
+loadMyAssignedLocations();
