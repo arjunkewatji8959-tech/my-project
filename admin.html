@@ -1883,6 +1883,27 @@
             <p>
               Admin creates and controls name, ID, post, salary, DOB and department. Field Officer, Supervisor and Guard can update only their DP and contact number.
             </p>
+
+            <!-- =====================================================
+                 PASSWORD CHANGE - Admin / Master Admin self-service
+                 ===================================================== -->
+            <div class="panel" style="margin-top:18px">
+              <h3>🔐 Change Password</h3>
+              <p class="muted-note">Applies only to your currently logged-in Admin / Master Admin account.</p>
+              <form id="selfPasswordForm" class="grid-form">
+                <label>Current Password
+                  <input id="selfCurrentPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="Enter current password">
+                </label>
+                <label>New Password
+                  <input id="selfNewPassword" type="password" autocomplete="new-password" required minlength="6" placeholder="Minimum 6 characters">
+                </label>
+                <label>Confirm New Password
+                  <input id="selfConfirmPassword" type="password" autocomplete="new-password" required minlength="6" placeholder="Re-enter new password">
+                </label>
+                <button type="submit" class="action primary-action">Change Password</button>
+              </form>
+              <p id="selfPasswordMsg" class="muted-note" style="display:none"></p>
+            </div>
           </div>
         </section>
         <!-- END SECTION: SECTION -->

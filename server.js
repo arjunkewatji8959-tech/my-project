@@ -383,9 +383,14 @@ app.get('/api/health',(req,res)=>res.json({status:'healthy',service:'SNDF backen
 
 // STAFF - only Admin creates/deletes/suspends. Everyone can read directory needed by their dashboard.
 app.get('/api/staff',auth,(req,res)=>{
-  all(`SELECT id,role,name,staff_id,post,salary,location_code,parent_id,status,suspended_until,suspension_reason,dob,department,contact_number,dp,
+  const cols=`id,role,name,staff_id,post,salary,location_code,parent_id,status,suspended_until,suspension_reason,dob,department,contact_number,dp,
       age,height,weight,blood_group,qualification,physical_level,medical_level,skills,police_verification,driving_license,
-      training_details,work_experience,photo_front,photo_back,photo_left,photo_right,is_reliever FROM staff ORDER BY id DESC`,[],res);
+      training_details,work_experience,photo_front,photo_back,photo_left,photo_right,is_reliever`;
+  // Field Officer / Officer must only see staff belonging to locations assigned to them.
+  if(['field_officer','officer'].includes(req.user.role)){
+    return all(`SELECT ${cols} FROM staff WHERE location_code IN (SELECT location_code FROM location_assignments WHERE staff_id=?) ORDER BY id DESC`,[req.user.staff_id],res);
+  }
+  all(`SELECT ${cols} FROM staff ORDER BY id DESC`,[],res);
 });
 // PROFILE UPDATE SHEET - Admin only. Exports current profile records as CSV.
 app.get('/api/profile-update-sheet',auth,roles('admin','master_admin'),(req,res)=>{
@@ -421,7 +426,8 @@ app.post('/api/staff',auth,roles('admin','master_admin','field_officer','officer
   const createTargets={master_admin:['admin','field_officer','officer','supervisor','guard'],admin:['field_officer','officer','supervisor','guard'],field_officer:['officer'],officer:['supervisor'],supervisor:['guard'],guard:[]};
   if(!createTargets[req.user.role]?.includes(role)) return res.status(403).json({error:`${req.user.role} cannot create ${role}`});
   if(role==='master_admin') return res.status(403).json({error:'Master Admin account is controlled by the system'});
-  const location=String(x.location_code||'').trim(), parent=role==='admin' ? 'adi123' : String(x.parent_id||'').trim();
+  // Admin is the required parent for both Field Officer and Officer.
+  const location=String(x.location_code||'').trim(), parent=['admin','field_officer','officer'].includes(role) ? (role==='admin' ? 'adi123' : String(x.parent_id||'').trim()) : String(x.parent_id||'').trim();
   const finish=()=>{
     bcrypt.hash(String(x.password),12,(he,hashed)=>{
       if(he)return res.status(500).json({error:'Password setup failed'});
@@ -443,8 +449,8 @@ app.post('/api/staff',auth,roles('admin','master_admin','field_officer','officer
     });
   };
   validateLocation(()=>{
-    if(role==='officer')return get('SELECT role FROM staff WHERE staff_id=?',[parent],(e,p)=>{if(e)return res.status(500).json({error:e.message});if(!p||p.role!=='field_officer')return res.status(400).json({error:'Officer Parent ID must be a Field Officer ID'});finish();});
-    if(role==='supervisor')return get('SELECT role FROM staff WHERE staff_id=?',[parent],(e,p)=>{if(e)return res.status(500).json({error:e.message});if(!p||p.role!=='officer')return res.status(400).json({error:'Supervisor Parent ID must be an Officer ID'});finish();});
+    if(role==='field_officer' || role==='officer')return get('SELECT role FROM staff WHERE staff_id=?',[parent],(e,p)=>{if(e)return res.status(500).json({error:e.message});if(!p||p.role!=='admin')return res.status(400).json({error:`${role==='field_officer'?'Field Officer':'Officer'} Parent ID must be an Admin ID`});finish();});
+    if(role==='supervisor')return get('SELECT role FROM staff WHERE staff_id=?',[parent],(e,p)=>{if(e)return res.status(500).json({error:e.message});if(!p||p.role!=='field_officer')return res.status(400).json({error:'Supervisor Parent ID must be a Field Officer ID'});finish();});
     if(role==='guard')return get('SELECT role,location_code FROM staff WHERE staff_id=?',[parent],(e,p)=>{if(e)return res.status(500).json({error:e.message});if(!p||p.role!=='supervisor')return res.status(400).json({error:'Guard Parent ID must be a Supervisor ID'});if(p.location_code!==location)return res.status(400).json({error:'Guard location must match the Supervisor location'});finish();});
     finish();
   });
@@ -475,7 +481,7 @@ app.put('/api/staff/:id/profile',auth,roles('admin','master_admin'),(req,res)=>{
       return get('SELECT role FROM staff WHERE staff_id=?',[parent],(pe,p)=>{ if(pe)return res.status(500).json({error:pe.message}); if(!p || p.role!=='field_officer')return res.status(400).json({error:'Officer Parent ID must be a Field Officer ID'}); save(); });
     }
     if(newRole==='supervisor' && parent){
-      return get('SELECT role FROM staff WHERE staff_id=?',[parent],(pe,p)=>{ if(pe)return res.status(500).json({error:pe.message}); if(!p || p.role!=='officer')return res.status(400).json({error:'Supervisor Parent ID must be an Officer ID'}); save(); });
+      return get('SELECT role FROM staff WHERE staff_id=?',[parent],(pe,p)=>{ if(pe)return res.status(500).json({error:pe.message}); if(!p || p.role!=='field_officer')return res.status(400).json({error:'Supervisor Parent ID must be a Field Officer ID'}); save(); });
     }
     if(newRole==='guard' && parent){
       return get('SELECT role,location_code FROM staff WHERE staff_id=?',[parent],(pe,p)=>{
@@ -532,6 +538,30 @@ app.put('/api/staff/:id/password',auth,roles('admin','master_admin'),(req,res)=>
         res.json({message:`Password changed for ${s.name} (${s.staff_id})`});
       });
     });
+  });
+});
+
+// SELF PASSWORD CHANGE - Admin and Master Admin can securely change their own password from Profile.
+app.put('/api/profile/me/password',auth,roles('admin','master_admin'),async(req,res)=>{
+  const currentPassword=String(req.body?.current_password||'');
+  const newPassword=String(req.body?.new_password||'').trim();
+  if(!currentPassword || !newPassword) return res.status(400).json({error:'Current password and new password are required'});
+  if(newPassword.length<6) return res.status(400).json({error:'New password must be at least 6 characters'});
+  if(currentPassword===newPassword) return res.status(400).json({error:'New password must be different from current password'});
+  get('SELECT id,staff_id,password FROM staff WHERE id=?',[req.user.id],async(err,s)=>{
+    if(err)return res.status(500).json({error:err.message});
+    if(!s)return res.status(404).json({error:'Profile not found'});
+    let ok=false;
+    try{ ok=await bcrypt.compare(currentPassword,String(s.password)); }catch(e){ ok=false; }
+    if(!ok && String(s.password)===currentPassword) ok=true;
+    if(!ok)return res.status(401).json({error:'Current password is incorrect'});
+    try{
+      const hashed=await bcrypt.hash(newPassword,12);
+      run('UPDATE staff SET password=? WHERE id=?',[hashed,s.id],res,()=>{
+        audit(req.user,'SELF_PASSWORD_CHANGED',s.staff_id,`Password changed by ${s.staff_id}`);
+        res.json({message:'Password changed successfully'});
+      });
+    }catch(e){return res.status(500).json({error:'Password setup failed'});}
   });
 });
 
@@ -1471,7 +1501,11 @@ app.post('/api/location-assignments', auth, roles('admin','master_admin'), (req,
 });
 
 app.get('/api/locations', auth, (req, res) => {
-  db.all('SELECT * FROM locations ORDER BY code ASC', [], (err, rows) => {
+  const sql = ['field_officer','officer'].includes(req.user.role)
+    ? 'SELECT l.* FROM locations l WHERE l.active=1 AND l.code IN (SELECT location_code FROM location_assignments WHERE staff_id=?) ORDER BY l.code ASC'
+    : 'SELECT * FROM locations ORDER BY code ASC';
+  const params = ['field_officer','officer'].includes(req.user.role) ? [req.user.staff_id] : [];
+  db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });

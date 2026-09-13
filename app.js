@@ -287,8 +287,9 @@ function fillCreateParent(list){
   if(!roleSel||!parentSel)return;
   const roleVal=roleSel.value, loc=locSel?.value||'';
   let parents=[];
-  if(roleVal==='officer')parents=list.filter(s=>s.role==='field_officer');
-  if(roleVal==='supervisor')parents=list.filter(s=>s.role==='officer');
+  // Field Officer and Officer are both directly under Admin.
+  if(roleVal==='field_officer' || roleVal==='officer')parents=list.filter(s=>s.role==='admin');
+  if(roleVal==='supervisor')parents=list.filter(s=>s.role==='field_officer');
   if(roleVal==='guard')parents=list.filter(s=>s.role==='supervisor' && (!loc||s.location_code===loc));
   parentSel.innerHTML='<option value="">Parent ID</option>'+parents.map(s=>`<option value="${escape(s.staff_id)}">${escape(s.name)} — ${escape(s.staff_id)}${s.location_code?' • '+escape(s.location_code):''}</option>`).join('');
 }
@@ -584,6 +585,25 @@ $('#directPointTransferForm')?.addEventListener('submit',async e=>{e.preventDefa
     }; rd.readAsDataURL(f);
   });
 });
+$('#selfPasswordForm')?.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const current=$('#selfCurrentPassword')?.value||'';
+  const next=$('#selfNewPassword')?.value||'';
+  const confirm=$('#selfConfirmPassword')?.value||'';
+  const out=$('#selfPasswordMsg');
+  if(next.length<6)return alert('New password must be at least 6 characters');
+  if(next!==confirm)return alert('New password and confirmation do not match');
+  try{
+    const r=await api('/profile/me/password',{method:'PUT',body:JSON.stringify({current_password:current,new_password:next})});
+    if(out){out.textContent='✓ '+r.message;out.style.display='block';}
+    e.target.reset();
+    msg('Password changed successfully ✓');
+  }catch(err){
+    if(out){out.textContent='❌ '+err.message;out.style.display='block';}
+    else alert(err.message);
+  }
+});
+
 $('#profileForm')?.addEventListener('submit',async e=>{
   e.preventDefault();
   const d=Object.fromEntries(new FormData(e.target));
