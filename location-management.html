@@ -90,9 +90,6 @@
         <a class="active" href="location-management.html">
           📍 Location Management
         </a>
-        <a href="location-assignment.html">
-          ☑ Location Assignment
-        </a>
         <a href="admin.html?view=profile-records">
           ♙ All Profile Records
         </a>
@@ -249,7 +246,7 @@
         <!-- LOCATION ASSIGNMENT -->
         <section class="card">
           <h2>🔐 Location Assignment</h2>
-          <p class="muted">Puri active locations yahan dikhenगी. Location ke saamne tick karke Field Officer/Officer select karein aur Assign button dabayein. Ek staff ko multiple locations assign ki ja sakti hain.</p>
+          <p class="muted">Main Office ko chhodkar sari active locations yahan dikhenगी. Field Officer/Officer ID select karein, location ke saamne tick karein aur Assign button dabayein. Ek staff ko multiple locations assign ki ja sakti hain.</p>
           <div class="assign-grid">
             <div>
               <div class="field"><label>Field Officer / Officer ID</label><select id="assignStaff"><option value="">Select Staff ID</option></select></div>
@@ -574,7 +571,7 @@
           ]);
           const eligible=(staffRows||[]).filter(x=>['field_officer','officer'].includes(x.role)&&x.status==='active');
           staff.innerHTML='<option value="">Select Field Officer / Officer</option>'+eligible.map(x=>`<option value="${esc(x.staff_id)}">${esc(x.staff_id)} — ${esc(x.name)} (${esc(x.role)})</option>`).join('');
-          list.innerHTML=(locs||[]).filter(x=>x.active).map(x=>{const ids=(assignments||[]).filter(a=>Number(a.location_id)===Number(x.id)).map(a=>esc(a.staff_id)).join(', ')||'Unassigned';return `<label class="check-row"><input type="checkbox" value="${Number(x.id)}"><span><b>${esc(x.code)}</b> — ${esc(x.name)}<br><small>${esc(x.address||'')}</small><br><span class="badge">Field/Officer ID: ${ids}</span></span><span class="badge">${Number(x.duty_hours)===8?8:12}H</span></label>`}).join('')||'<div class="check-row">No active locations</div>';
+          list.innerHTML=(locs||[]).filter(x=>x.active && String(x.name||'').trim().toLowerCase()!=='main office' && String(x.code||'').trim().toLowerCase()!=='main office').map(x=>{const ids=(assignments||[]).filter(a=>Number(a.location_id)===Number(x.id)).map(a=>esc(a.staff_id)).join(', ')||'Unassigned';return `<label class="check-row"><input type="checkbox" value="${Number(x.id)}"><span><b>${esc(x.code)}</b> — ${esc(x.name)}</b><br><small>${esc(x.address||'')}</small><br><span class="badge">Field/Officer ID: ${ids}</span></span><span class="badge">${Number(x.duty_hours)===8?8:12}H</span></label>`}).join('')||'<div class="check-row">No assignable active locations</div>';
           rows.innerHTML=(assignments||[]).map(x=>`<tr><td>${esc(x.location_name)}</td><td><b>${esc(x.location_code)}</b></td><td>${esc(x.staff_name)}<br><small>${esc(x.staff_id)}</small></td><td>${esc(x.staff_role)}</td></tr>`).join('')||'<tr><td colspan="4">No assignments yet.</td></tr>';
         }catch(e){list.innerHTML='<div class="check-row">'+esc(e.message)+'</div>'}
       }

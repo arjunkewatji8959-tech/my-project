@@ -1470,7 +1470,9 @@ function adminOnly(req, res, next) {
 app.get('/api/location-assignments', auth, roles('admin','master_admin'), (req,res)=>{
   all(`SELECT la.*,l.name AS location_name,l.address,s.name AS staff_name,s.role AS staff_role
        FROM location_assignments la JOIN locations l ON l.id=la.location_id
-       JOIN staff s ON s.staff_id=la.staff_id ORDER BY l.code,s.name`,[],res);
+       JOIN staff s ON s.staff_id=la.staff_id
+       WHERE lower(trim(l.name)) <> 'main office' AND lower(trim(l.code)) <> 'main office'
+       ORDER BY l.code,s.name`,[],res);
 });
 app.get('/api/my-locations', auth, (req,res)=>{
   if(!['field_officer','officer'].includes(req.user.role)) return res.status(403).json({error:'Only Field Officer/Officer'});
@@ -1483,7 +1485,7 @@ app.post('/api/location-assignments', auth, roles('admin','master_admin'), (req,
   if(!staffId||!ids.length)return res.status(400).json({error:'Select Field Officer/Officer and locations'});
   get(`SELECT staff_id,name,role FROM staff WHERE staff_id=? AND role IN ('field_officer','officer') AND status='active'`,[staffId],(e,s)=>{
     if(e)return res.status(500).json({error:e.message}); if(!s)return res.status(404).json({error:'Field Officer/Officer not found'});
-    db.all(`SELECT id,code FROM locations WHERE id IN (${ids.map(()=>'?').join(',')}) AND active=1`,ids,(le,locs)=>{
+    db.all(`SELECT id,code FROM locations WHERE id IN (${ids.map(()=>'?').join(',')}) AND active=1 AND lower(trim(name)) <> 'main office' AND lower(trim(code)) <> 'main office'`,ids,(le,locs)=>{
       if(le)return res.status(500).json({error:le.message});
       if(locs.length!==ids.length)return res.status(400).json({error:'Invalid/inactive location selected'});
       db.run('DELETE FROM location_assignments WHERE staff_id=?',[staffId],de=>{
