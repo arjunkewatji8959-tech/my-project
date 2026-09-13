@@ -703,8 +703,8 @@ app.get('/api/team-attendance',auth,roles('field_officer','officer','supervisor'
     ? `(s.parent_id=? OR s.reliever_parent_id=?) AND s.role='guard'`
     : req.user.role==='officer'
       ? `((s.role='supervisor' AND (s.parent_id=? OR s.reliever_parent_id=?)) OR (s.role='guard' AND (s.parent_id IN (SELECT staff_id FROM staff WHERE parent_id=?) OR s.reliever_parent_id IN (SELECT staff_id FROM staff WHERE parent_id=?))))`
-      : `(s.location_code IN (SELECT location_code FROM location_assignments WHERE staff_id=?) OR s.parent_id=? OR s.reliever_parent_id=?) AND s.role IN ('officer','supervisor','guard')`;
-  const params=req.user.role==='field_officer'?[parent,parent,parent]:req.user.role==='officer'?[parent,parent,parent,parent]:[parent,parent];
+      : `(s.location_code IN (SELECT location_code FROM location_assignments WHERE staff_id=?)) AND s.role IN ('officer','supervisor','guard')`;
+  const params=req.user.role==='field_officer'?[parent]:req.user.role==='officer'?[parent,parent,parent,parent]:[parent,parent];
   all(`SELECT a.*,s.role,s.location_code AS staff_location_code,s.parent_id,s.reliever_parent_id FROM attendance a
        JOIN staff s ON s.staff_id=a.staff_id WHERE ${condition} ORDER BY a.date DESC,a.id DESC`,params,res);
 });
