@@ -1447,11 +1447,51 @@ db.run("ALTER TABLE staff ADD COLUMN reliever_shift TEXT DEFAULT 'Day Shift'",()
 db.run("ALTER TABLE locations ADD COLUMN duty_hours INTEGER NOT NULL DEFAULT 12",()=>{});
 // Multiple-location assignment for Field Officer / Officer.
 db.run(`CREATE TABLE IF NOT EXISTS location_assignments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, location_id INTEGER NOT NULL, location_code TEXT NOT NULL,
+  id INTEGER PRIMARY KEY AUTOINCREMENT, location_id INTEGER, location_code TEXT NOT NULL,
   staff_id TEXT NOT NULL, assigned_by TEXT NOT NULL, assigned_at TEXT DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(location_id,staff_id)
 )`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_location_assignments_staff ON location_assignments(staff_id)`);
+
+// Railway migration: older databases may already contain location_assignments
+// without the newer location_id column. Add missing columns safely, then backfill
+// location_id from the stored location_code. This prevents SQLITE_ERROR on the
+// Location Management -> Location Assignment section after a redeploy.
+function ensureLocationAssignmentSchema(done){
+  const required = [
+    ['location_id','INTEGER'],
+    ['location_code','TEXT'],
+    ['staff_id','TEXT'],
+    ['assigned_by','TEXT'],
+    ['assigned_at','TEXT DEFAULT CURRENT_TIMESTAMP']
+  ];
+  db.all('PRAGMA table_info(location_assignments)', [], (err, cols)=>{
+    if(err) return done(err);
+    const existing = new Set((cols || []).map(c=>c.name));
+    const missing = required.filter(([name])=>!existing.has(name));
+    const addNext = (i)=>{
+      if(i >= missing.length){
+        db.run(`UPDATE location_assignments
+                SET location_id=(SELECT l.id FROM locations l WHERE l.code=location_assignments.location_code)
+                WHERE location_id IS NULL`, (e)=>{
+          if(e) return done(e);
+          db.run(`DELETE FROM location_assignments
+                  WHERE location_id IN (SELECT id FROM locations WHERE lower(trim(name))='main office' OR lower(trim(code))='main office')`, (de)=>{
+            if(de) return done(de);
+            done(null);
+          });
+        });
+        return;
+      }
+      const [name,type] = missing[i];
+      db.run(`ALTER TABLE location_assignments ADD COLUMN ${name} ${type}`, (e)=>{
+        if(e) return done(e);
+        addNext(i+1);
+      });
+    };
+    addNext(0);
+  });
+}
 
 
 // =====================================================
@@ -1560,4 +1600,13 @@ app.delete('/api/locations/:id', adminOnly, (req, res) => {
 setInterval(scanPointPushDue,30000);
 setTimeout(scanPointPushDue,5000);
 
-app.listen(PORT,'0.0.0.0',()=>console.log(`SNDF backend running on port ${PORT}`));
+// Start HTTP only after the location-assignment migration has completed.
+// This is important for Railway because its persistent SQLite database can
+// come from an older deployment schema.
+ensureLocationAssignmentSchema((migrationError)=>{
+  if(migrationError){
+    console.error('Location assignment schema migration failed:', migrationError.message);
+    process.exit(1);
+  }
+  app.listen(PORT,'0.0.0.0',()=>console.log(`SNDF backend running on port ${PORT}`));
+});

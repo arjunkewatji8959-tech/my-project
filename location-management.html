@@ -565,15 +565,35 @@
 
       async function loadAssignments(){
         const list=$('assignLocationList'), staff=$('assignStaff'), rows=$('assignmentRows');
-        try{
-          const [locs,assignments,staffRows]=await Promise.all([
-            apiJson('/api/locations',{headers}),apiJson('/api/location-assignments',{headers}),apiJson('/api/staff',{headers})
+        list.innerHTML='<div class="check-row"><span>…</span><span>Loading locations</span></div>';
+        rows.innerHTML='<tr><td colspan="4">Loading…</td></tr>';
+        try {
+          // Load locations independently so an old assignment-table schema cannot
+          // prevent the actual locations from appearing in the assignment UI.
+          const [locs, staffRows] = await Promise.all([
+            apiJson('/api/locations',{headers}),
+            apiJson('/api/staff',{headers})
           ]);
           const eligible=(staffRows||[]).filter(x=>['field_officer','officer'].includes(x.role)&&x.status==='active');
           staff.innerHTML='<option value="">Select Field Officer / Officer</option>'+eligible.map(x=>`<option value="${esc(x.staff_id)}">${esc(x.staff_id)} — ${esc(x.name)} (${esc(x.role)})</option>`).join('');
-          list.innerHTML=(locs||[]).filter(x=>x.active && String(x.name||'').trim().toLowerCase()!=='main office' && String(x.code||'').trim().toLowerCase()!=='main office').map(x=>{const ids=(assignments||[]).filter(a=>Number(a.location_id)===Number(x.id)).map(a=>esc(a.staff_id)).join(', ')||'Unassigned';return `<label class="check-row"><input type="checkbox" value="${Number(x.id)}"><span><b>${esc(x.code)}</b> — ${esc(x.name)}</b><br><small>${esc(x.address||'')}</small><br><span class="badge">Field/Officer ID: ${ids}</span></span><span class="badge">${Number(x.duty_hours)===8?8:12}H</span></label>`}).join('')||'<div class="check-row">No assignable active locations</div>';
+
+          let assignments=[];
+          try {
+            assignments=await apiJson('/api/location-assignments',{headers});
+          } catch (assignmentError) {
+            console.warn('Location assignments could not be loaded:', assignmentError.message);
+          }
+
+          const assignable=(locs||[]).filter(x=>x.active && String(x.name||'').trim().toLowerCase()!=='main office' && String(x.code||'').trim().toLowerCase()!=='main office');
+          list.innerHTML=assignable.map(x=>{
+            const ids=(assignments||[]).filter(a=>Number(a.location_id)===Number(x.id)).map(a=>esc(a.staff_id)).join(', ')||'Unassigned';
+            return `<label class="check-row"><input type="checkbox" value="${Number(x.id)}"><span><b>${esc(x.code)}</b> — ${esc(x.name)}<br><small>${esc(x.address||'')}</small><br><span class="badge">Field/Officer ID: ${ids}</span></span><span class="badge">${Number(x.duty_hours)===8?8:12}H</span></label>`;
+          }).join('')||'<div class="check-row">No assignable active locations</div>';
           rows.innerHTML=(assignments||[]).map(x=>`<tr><td>${esc(x.location_name)}</td><td><b>${esc(x.location_code)}</b></td><td>${esc(x.staff_name)}<br><small>${esc(x.staff_id)}</small></td><td>${esc(x.staff_role)}</td></tr>`).join('')||'<tr><td colspan="4">No assignments yet.</td></tr>';
-        }catch(e){list.innerHTML='<div class="check-row">'+esc(e.message)+'</div>'}
+        } catch(e) {
+          list.innerHTML='<div class="check-row">❌ '+esc(e.message)+'</div>';
+          rows.innerHTML='<tr><td colspan="4">❌ '+esc(e.message)+'</td></tr>';
+        }
       }
       $('assignLocationsBtn').addEventListener('click',async()=>{
         const staff=$('assignStaff').value, ids=[...document.querySelectorAll('#assignLocationList input:checked')].map(x=>Number(x.value));
