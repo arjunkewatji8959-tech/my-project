@@ -423,10 +423,10 @@ app.post('/api/staff',auth,roles('admin','master_admin','field_officer','officer
   const role=['admin','field_officer','officer','supervisor','guard'].includes(x.role)?x.role:null;
   if(!role || !x.name || !x.staff_id || !x.password) return res.status(400).json({error:'Role, name, Staff ID and password are required'});
   if(role==='admin' && req.user.role!=='master_admin') return res.status(403).json({error:'Only Master Admin can create a new Admin'});
-  const createTargets={master_admin:['admin','field_officer','officer','supervisor','guard'],admin:['field_officer','officer','supervisor','guard'],field_officer:['officer'],officer:['supervisor'],supervisor:['guard'],guard:[]};
+  const createTargets={master_admin:['admin','field_officer','officer','supervisor','guard'],admin:['field_officer','officer','supervisor','guard'],field_officer:['supervisor'],officer:[],supervisor:['guard'],guard:[]};
   if(!createTargets[req.user.role]?.includes(role)) return res.status(403).json({error:`${req.user.role} cannot create ${role}`});
   if(role==='master_admin') return res.status(403).json({error:'Master Admin account is controlled by the system'});
-  // Admin is the required parent for both Field Officer and Officer.
+  // Admin is the required parent for both Field Officer and Officer. Officer is a separate operational role; it does not create Supervisor.
   const location=String(x.location_code||'').trim(), parent=['admin','field_officer','officer'].includes(role) ? (role==='admin' ? 'adi123' : String(x.parent_id||'').trim()) : String(x.parent_id||'').trim();
   const finish=()=>{
     bcrypt.hash(String(x.password),12,(he,hashed)=>{
@@ -478,7 +478,7 @@ app.put('/api/staff/:id/profile',auth,roles('admin','master_admin'),(req,res)=>{
     };
     const continueEdit=()=>{
     if(newRole==='officer' && parent){
-      return get('SELECT role FROM staff WHERE staff_id=?',[parent],(pe,p)=>{ if(pe)return res.status(500).json({error:pe.message}); if(!p || p.role!=='field_officer')return res.status(400).json({error:'Officer Parent ID must be a Field Officer ID'}); save(); });
+      return get('SELECT role FROM staff WHERE staff_id=?',[parent],(pe,p)=>{ if(pe)return res.status(500).json({error:pe.message}); if(!p || p.role!=='admin')return res.status(400).json({error:'Officer Parent ID must be an Admin ID'}); save(); });
     }
     if(newRole==='supervisor' && parent){
       return get('SELECT role FROM staff WHERE staff_id=?',[parent],(pe,p)=>{ if(pe)return res.status(500).json({error:pe.message}); if(!p || p.role!=='field_officer')return res.status(400).json({error:'Supervisor Parent ID must be a Field Officer ID'}); save(); });
@@ -711,25 +711,22 @@ app.get('/api/team-attendance',auth,roles('field_officer','officer','supervisor'
 
 
 // =====================================================
-// TASK MANAGEMENT - role hierarchy
+// TASK MANAGEMENT - only Master Admin and Admin can create/assign tasks
 // Master Admin -> Admin/Field Officer/Officer/Supervisor/Guard
 // Admin -> Field Officer/Officer/Supervisor/Guard
-// Field Officer -> Officer
-// Officer -> Supervisor; Supervisor -> Guard
+// All roles can view their assigned tasks and submit progress/reports.
+// Multiple IDs can be assigned in one request; the backend creates one task
+// record per assignee so every staff member has an independent status/report.
 // =====================================================
 const TASK_TARGETS = {
   master_admin:['admin','field_officer','officer','supervisor','guard'],
   admin:['field_officer','officer','supervisor','guard'],
-  field_officer:['officer'],
-  officer:['supervisor'],
-  supervisor:['guard'],
+  field_officer:[],
+  officer:[],
+  supervisor:[],
   guard:[]
 };
-// =====================================================
-// SECTION: FUNCTION canAssignTask
-// =====================================================
 function canAssignTask(from,to){ return (TASK_TARGETS[from]||[]).includes(to); }
-// END SECTION: FUNCTION canAssignTask
 
 app.get('/api/tasks',auth,(req,res)=>{
   const base=`SELECT t.*,s.name AS assignee_name,c.name AS creator_name
@@ -739,40 +736,54 @@ app.get('/api/tasks',auth,(req,res)=>{
   if(req.user.role==='master_admin') return all(base+' ORDER BY t.id DESC',[],res);
   all(base+' WHERE t.assigned_to=? OR t.created_by=? ORDER BY t.id DESC',[req.user.staff_id,req.user.staff_id],res);
 });
-app.post('/api/tasks',auth,(req,res)=>{
-  const x=req.body||{}, assigned=String(x.assigned_to||'').trim();
-  if(!x.title||!assigned)return res.status(400).json({error:'Task title and assignee are required'});
-  get('SELECT staff_id,name,role,status FROM staff WHERE LOWER(TRIM(staff_id))=LOWER(TRIM(?)) LIMIT 1',[assigned],(e,s)=>{
-    if(e)return res.status(500).json({error:e.message});
-    if(!s && /^\d+$/.test(assigned)){
-      return get('SELECT staff_id,name,role,status FROM staff WHERE id=? LIMIT 1',[Number(assigned)],(e2,s2)=>{
-        if(e2)return res.status(500).json({error:e2.message});
-        if(!s2)return res.status(404).json({error:`Assignee not found: ${assigned}`});
-        createTaskForAssignee(s2);
-      });
+
+app.post('/api/tasks',auth,roles('admin','master_admin'),(req,res)=>{
+  const x=req.body||{};
+  const values=[];
+  const addValue=v=>{
+    if(v===undefined||v===null)return;
+    if(Array.isArray(v)) v.forEach(addValue);
+    else String(v).split(',').map(z=>z.trim()).filter(Boolean).forEach(z=>values.push(z));
+  };
+  addValue(x.assigned_to);
+  addValue(x.task_ids);
+  const assigned=[...new Map(values.map(v=>[v.toLowerCase(),v])).values()];
+  if(!x.title||!assigned.length)return res.status(400).json({error:'Task title and at least one assignee ID/member are required'});
+  const priority=['Low','Normal','High','Urgent'].includes(x.priority)?x.priority:'Normal';
+  const created=[];
+
+  function resolveStaff(target,cb){
+    get('SELECT staff_id,name,role,status FROM staff WHERE LOWER(TRIM(staff_id))=LOWER(TRIM(?)) LIMIT 1',[target],(e,s)=>{
+      if(e)return cb(e);
+      if(s)return cb(null,s);
+      if(/^\d+$/.test(target)){
+        return get('SELECT staff_id,name,role,status FROM staff WHERE id=? LIMIT 1',[Number(target)],(e2,s2)=>cb(e2,s2||null));
+      }
+      cb(null,null);
+    });
+  }
+
+  function createNext(i){
+    if(i>=assigned.length){
+      return res.status(201).json({message:`${created.length} task(s) assigned successfully`,count:created.length,created});
     }
-    if(!s)return res.status(404).json({error:`Assignee not found: ${assigned}`});
-    createTaskForAssignee(s);
-
-    // =====================================================
-
-    // SECTION: FUNCTION createTaskForAssignee
-
-    // =====================================================
-
-    function createTaskForAssignee(s){
-    if(s.status==='suspended')return res.status(403).json({error:'Cannot assign a task to a suspended member'});
-    if(!canAssignTask(req.user.role,s.role))return res.status(403).json({error:`${labelRole(req.user.role)} cannot assign tasks to ${labelRole(s.role)}`});
-    const priority=['Low','Normal','High','Urgent'].includes(x.priority)?x.priority:'Normal';
-    run(`INSERT INTO tasks(title,description,priority,created_by,created_by_role,assigned_to,assigned_role,due_at,status,created_at)
-         VALUES(?,?,?,?,?,?,?,?,'Pending',?)`,
-      [String(x.title).trim(),String(x.description||'').trim(),priority,req.user.staff_id,req.user.role,s.staff_id,s.role,x.due_at||'',new Date().toISOString()],
-      res,row=>{audit(req.user,'TASK_CREATED',s.staff_id,`${x.title}; priority=${priority}`);res.status(201).json({id:row.lastID,message:'Task created',assigned_to:s.staff_id,assigned_role:s.role});});
-    }
-
-    // END SECTION: FUNCTION createTaskForAssignee
-
-  });
+    const target=assigned[i];
+    resolveStaff(target,(e,s)=>{
+      if(e)return res.status(500).json({error:e.message});
+      if(!s)return res.status(404).json({error:`Assignee not found: ${target}`});
+      if(s.status==='suspended')return res.status(403).json({error:`Cannot assign a task to suspended member: ${s.staff_id}`});
+      if(!canAssignTask(req.user.role,s.role))return res.status(403).json({error:`${labelRole(req.user.role)} cannot assign tasks to ${labelRole(s.role)} (${s.staff_id})`});
+      run(`INSERT INTO tasks(title,description,priority,created_by,created_by_role,assigned_to,assigned_role,due_at,status,created_at)
+           VALUES(?,?,?,?,?,?,?,?,'Pending',?)`,
+        [String(x.title).trim(),String(x.description||'').trim(),priority,req.user.staff_id,req.user.role,s.staff_id,s.role,x.due_at||'',new Date().toISOString()],
+        res,row=>{
+          created.push({id:row.lastID,assigned_to:s.staff_id,assigned_role:s.role,name:s.name});
+          audit(req.user,'TASK_CREATED',s.staff_id,`${x.title}; priority=${priority}`);
+          createNext(i+1);
+        });
+    });
+  }
+  createNext(0);
 });
 // =====================================================
 // SECTION: FUNCTION labelRole

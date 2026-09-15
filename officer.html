@@ -46,9 +46,6 @@
         <button data-view="account">
           ◉ My Account
         </button>
-        <button data-view="team-management">
-          👤 Supervisor Management
-        </button>
         <button data-view="fine">
           ⚠ Fine Records
         </button>
@@ -60,9 +57,6 @@
         </button>
         <button data-view="help">
           ? Help
-        </button>
-        <button data-view="point-transfer">
-          📍 Point Transfer
         </button>
         <button data-view="tasks">
           ✓ Task Management
@@ -679,279 +673,7 @@
             </div>
           </div>
         </div>
-        <section id="team-management" class="view hidden">
-          <h2>
-            Supervisor Management
-          </h2>
-          <div class="panel">
-            <h3>
-              Create Supervisor
-            </h3>
-            <p class="muted-note">
-              Chain: Field Officer → Officer → Supervisor → Guard. An Officer can create Supervisors under their own ID.
-            </p>
-            <form data-type="staff" class="grid-form">
-              <input type="hidden" name="role" value="supervisor">
-              <input name="name" placeholder="Supervisor Full Name" required>
-              <input name="staff_id" placeholder="Supervisor Staff ID" required>
-              <input name="password" type="password" placeholder="Password" required>
-              <input name="post" value="Supervisor" placeholder="Post">
-              <input name="salary" type="number" min="0" placeholder="Salary">
-              <input name="department" placeholder="Department">
-              <input id="createSupervisorLocation" name="location_code" value="" placeholder="Location Code" required>
-              <input type="hidden" id="createSupervisorParent" name="parent_id" value="">
-              <input name="contact_number" placeholder="Contact Number">
-              <button class="action primary-action">
-                Create Supervisor
-              </button>
-            </form>
-            <!-- END SECTION: FORM -->
-          </div>
-          <div class="panel table-wrap">
-            <h3>
-              My Supervisors
-            </h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    Name
-                  </th>
-                  <th>
-                    ID
-                  </th>
-                  <th>
-                    Location
-                  </th>
-                  <th>
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody id="mySupervisorRows">
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <!-- END SECTION: SECTION -->
-        <section id="daily" class="view hidden">
-          <h2>
-            Daily Attendance
-          </h2>
-          <div class="panel table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    Photo
-                  </th>
-                  <th>
-                    Role
-                  </th>
-                  <th>
-                    ID
-                  </th>
-                  <th>
-                    Name
-                  </th>
-                  <th>
-                    Shift
-                  </th>
-                  <th>
-                    In
-                  </th>
-                  <th>
-                    Out
-                  </th>
-                  <th>
-                    Hours
-                  </th>
-                  <th>
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody id="dailyRows">
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <!-- END SECTION: SECTION -->
-        <section id="fine" class="view hidden">
-          <h2>
-            Fine Section
-          </h2>
-          <div class="panel fine-form">
-            <form data-type="fine" class="grid-form">
-              <select id="fineTarget" name="target_id" required>
-              </select>
-              <input name="reason" placeholder="Fine reason" required>
-              <input name="amount" type="number" min="1" placeholder="Fine amount" required>
-              <button class="action danger">
-                Apply Fine
-              </button>
-            </form>
-            <!-- END SECTION: FORM -->
-            <p>
-              Admin and Field Officer can issue fines to Guard or Supervisor. Supervisor and Guard cannot issue fines.
-            </p>
-          </div>
-          <div class="panel table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    Target ID
-                  </th>
-                  <th>
-                    Reason
-                  </th>
-                  <th>
-                    Amount
-                  </th>
-                  <th>
-                    Issued By
-                  </th>
-                  <th>
-                    Date
-                  </th>
-                </tr>
-              </thead>
-              <tbody id="fineRows">
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <!-- END SECTION: SECTION -->
-        <section id="account" class="view hidden">
-          <h2>
-            Account Section
-          </h2>
-          <div id="accountBox" class="account-grid">
-          </div>
-          <div class="panel">
-            <button id="accountDone" class="action primary-action">
-              Done
-            </button>
-          </div>
-        </section>
-        <!-- END SECTION: SECTION -->
-        <section id="staff" class="view hidden">
-          <h2>
-            Staff Management
-          </h2>
-          <div class="panel">
-            <form data-type="staff" class="grid-form">
-              <select name="role">
-                <option value="field_officer">
-                  Field Officer
-                </option>
-                <option value="supervisor">
-                  Supervisor
-                </option>
-                <option value="guard">
-                  Guard
-                </option>
-                <option value="admin">
-                  Admin
-                </option>
-              </select>
-              <input name="name" placeholder="Full Name" required>
-              <input name="staff_id" placeholder="Staff ID" required>
-              <input name="password" type="password" placeholder="Password" required>
-              <input name="post" placeholder="Post">
-              <input name="salary" type="number" min="0" placeholder="Salary">
-              <input name="dob" type="date">
-              <input name="department" placeholder="Department">
-              <input name="location_code" placeholder="Location Code">
-              <input name="parent_id" placeholder="Parent Staff ID">
-              <input name="contact_number" placeholder="Contact Number">
-              <button class="action primary-action">
-                Create Member
-              </button>
-            </form>
-            <!-- END SECTION: FORM -->
-          </div>
-          <div class="panel table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    Role
-                  </th>
-                  <th>
-                    Name
-                  </th>
-                  <th>
-                    ID
-                  </th>
-                  <th>
-                    Post
-                  </th>
-                  <th>
-                    Department
-                  </th>
-                  <th>
-                    Salary
-                  </th>
-                  <th>
-                    Status
-                  </th>
-                  <th>
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody id="staffRows">
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <!-- END SECTION: SECTION -->
-        <section id="advance" class="view hidden">
-          <h2>
-            Advance Payment
-          </h2>
-          <div class="panel">
-            <form data-type="advance" class="grid-form">
-              <input name="staff_id" placeholder="Staff ID" required>
-              <input name="amount" type="number" min="1" placeholder="Advance Amount" required>
-              <input name="note" placeholder="Note">
-              <button class="action">
-                Add Advance
-              </button>
-            </form>
-            <!-- END SECTION: FORM -->
-          </div>
-        </section>
-        <!-- END SECTION: SECTION -->
-        <section id="suspend" class="view hidden">
-          <h2>
-            ID Suspension
-          </h2>
-          <div class="panel">
-            <form id="suspendForm" class="grid-form">
-              <select id="suspendStaff" required>
-                <option value="">
-                  Select member
-                </option>
-              </select>
-              <input id="suspendHours" type="number" min="1" max="720" value="12" required>
-              <input id="suspendReason" placeholder="Reason" required>
-              <button class="action danger">
-                Suspend ID
-              </button>
-            </form>
-            <!-- END SECTION: FORM -->
-          </div>
-        </section>
-        <!-- END SECTION: SECTION -->
-
-        <section id="notifications" class="view hidden">
-          <h2>🔔 Notifications</h2>
-          <div class="panel"><div id="notificationRows"><p class="muted-note">Loading notifications…</p></div></div>
-        </section>
-        <section id="notice" class="view hidden">
+<section id="notice" class="view hidden">
           <h2>
             Notice Section
           </h2>
@@ -986,41 +708,6 @@
           </div>
         </section>
         <!-- END SECTION: SECTION -->
-        <section id="point-transfer" class="view hidden">
-          <h2>
-            Point Transfer
-          </h2>
-          <div class="panel">
-            <p>
-              Current Point:
-              <b id="currentPoint">
-                —
-              </b>
-            </p>
-            <form id="pointTransferForm" class="grid-form">
-              <label>
-                New Point
-                <select id="transferPoint" name="to_location" required>
-                  <option value="">
-                    Select Point
-                  </option>
-                </select>
-              </label>
-              <textarea name="reason" placeholder="Reason for point transfer" required>
-              </textarea>
-              <button class="action primary-action">
-                Request Point Transfer
-              </button>
-            </form>
-            <!-- END SECTION: FORM -->
-            <p class="muted-note">
-              Request Admin ko jayegi. Admin approve karne ke baad aapka Location Code / Point change hoga.
-            </p>
-          </div>
-          <div id="myTransferRows">
-          </div>
-        </section>
-        <!-- END SECTION: SECTION -->
         <section id="help" class="view hidden">
           <h2>
             Help Section
@@ -1048,16 +735,18 @@
               Create / Assign Task
             </h3>
             <p class="muted-note">
-              Task hierarchy: Master Admin → Admin/Field Officer/Officer/Supervisor/Guard; Admin → Field Officer/Officer/Supervisor/Guard; Field Officer → Officer; Officer → Supervisor; Supervisor → Guard.
+              केवल Master Admin और Admin ही Task दे सकते हैं। Task एक ID, कई IDs, या नीचे से कई members select करके एक साथ दिया जा सकता है।
             </p>
             <form id="taskCreateForm" class="grid-form task-create-form">
               <label>
-                Assign To
-                <select id="taskAssignee" name="assigned_to" required>
-                  <option value="">
-                    Loading members…
-                  </option>
+                Members Select करें (एक से अधिक भी)
+                <select id="taskAssignee" name="assigned_to" multiple size="6">
+                  <option value="">Loading members…</option>
                 </select>
+              </label>
+              <label>
+                ID से Task दें (एक या कई ID)
+                <input id="taskIds" name="task_ids" placeholder="ADM002, FO001, SUP003, G001">
               </label>
               <label>
                 Task Title
@@ -1066,18 +755,10 @@
               <label>
                 Priority
                 <select name="priority">
-                  <option>
-                    Low
-                  </option>
-                  <option selected>
-                    Normal
-                  </option>
-                  <option>
-                    High
-                  </option>
-                  <option>
-                    Urgent
-                  </option>
+                  <option>Low</option>
+                  <option selected>Normal</option>
+                  <option>High</option>
+                  <option>Urgent</option>
                 </select>
               </label>
               <label>
@@ -1086,14 +767,12 @@
               </label>
               <label>
                 Task Description
-                <textarea name="description" placeholder="Task details / instructions" required>
-                </textarea>
+                <textarea name="description" placeholder="Task details / instructions" required></textarea>
               </label>
               <button class="action primary-action">
                 ✓ Assign Task
               </button>
             </form>
-            <!-- END SECTION: FORM -->
           </div>
           <div class="panel table-wrap">
             <h3>
@@ -1102,37 +781,18 @@
             <table>
               <thead>
                 <tr>
-                  <th>
-                    ID
-                  </th>
-                  <th>
-                    Task
-                  </th>
-                  <th>
-                    Assigned To
-                  </th>
-                  <th>
-                    Created By
-                  </th>
-                  <th>
-                    Priority
-                  </th>
-                  <th>
-                    Due
-                  </th>
-                  <th>
-                    Status
-                  </th>
-                  <th>
-                    Last Update
-                  </th>
-                  <th>
-                    Action
-                  </th>
+                  <th>ID</th>
+                  <th>Task</th>
+                  <th>Assigned To</th>
+                  <th>Created By</th>
+                  <th>Priority</th>
+                  <th>Due</th>
+                  <th>Status</th>
+                  <th>Last Update</th>
+                  <th>Action</th>
                 </tr>
               </thead>
-              <tbody id="taskRows">
-              </tbody>
+              <tbody id="taskRows"></tbody>
             </table>
           </div>
           <div class="panel task-report-panel hidden" id="taskReportPanel">
@@ -1143,8 +803,7 @@
               <input id="reportTaskId" type="hidden">
               <label>
                 Report Summary
-                <textarea id="reportSummary" required placeholder="What was done?">
-                </textarea>
+                <textarea id="reportSummary" required placeholder="What was done?"></textarea>
               </label>
               <label>
                 Time Summary
@@ -1152,18 +811,15 @@
               </label>
               <label>
                 Result / Outcome
-                <textarea id="reportResult" required placeholder="Final result / outcome">
-                </textarea>
+                <textarea id="reportResult" required placeholder="Final result / outcome"></textarea>
               </label>
               <label>
                 Issues / Observations
-                <textarea id="reportIssues" placeholder="Any issue, delay or observation">
-                </textarea>
+                <textarea id="reportIssues" placeholder="Any issue, delay or observation"></textarea>
               </label>
               <label>
                 Next Action
-                <textarea id="reportNextAction" placeholder="Follow-up / next step">
-                </textarea>
+                <textarea id="reportNextAction" placeholder="Follow-up / next step"></textarea>
               </label>
               <div>
                 <button type="submit" class="action success">
@@ -1174,7 +830,6 @@
                 </button>
               </div>
             </form>
-            <!-- END SECTION: FORM -->
           </div>
         </section>
         <!-- END SECTION: SECTION -->

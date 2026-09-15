@@ -835,16 +835,18 @@
               Create / Assign Task
             </h3>
             <p class="muted-note">
-              Task hierarchy: Master Admin → Admin/Field Officer/Supervisor/Guard; Admin → Field Officer/Supervisor/Guard; Field Officer → Supervisor/Guard; Supervisor → Guard.
+              केवल Master Admin और Admin ही Task दे सकते हैं। Task एक ID, कई IDs, या नीचे से कई members select करके एक साथ दिया जा सकता है।
             </p>
             <form id="taskCreateForm" class="grid-form task-create-form">
               <label>
-                Assign To
-                <select id="taskAssignee" name="assigned_to" required>
-                  <option value="">
-                    Loading members…
-                  </option>
+                Members Select करें (एक से अधिक भी)
+                <select id="taskAssignee" name="assigned_to" multiple size="6">
+                  <option value="">Loading members…</option>
                 </select>
+              </label>
+              <label>
+                ID से Task दें (एक या कई ID)
+                <input id="taskIds" name="task_ids" placeholder="ADM002, FO001, SUP003, G001">
               </label>
               <label>
                 Task Title
@@ -853,18 +855,10 @@
               <label>
                 Priority
                 <select name="priority">
-                  <option>
-                    Low
-                  </option>
-                  <option selected>
-                    Normal
-                  </option>
-                  <option>
-                    High
-                  </option>
-                  <option>
-                    Urgent
-                  </option>
+                  <option>Low</option>
+                  <option selected>Normal</option>
+                  <option>High</option>
+                  <option>Urgent</option>
                 </select>
               </label>
               <label>
@@ -873,14 +867,12 @@
               </label>
               <label>
                 Task Description
-                <textarea name="description" placeholder="Task details / instructions" required>
-                </textarea>
+                <textarea name="description" placeholder="Task details / instructions" required></textarea>
               </label>
               <button class="action primary-action">
                 ✓ Assign Task
               </button>
             </form>
-            <!-- END SECTION: FORM -->
           </div>
           <div class="panel table-wrap">
             <h3>
@@ -889,37 +881,18 @@
             <table>
               <thead>
                 <tr>
-                  <th>
-                    ID
-                  </th>
-                  <th>
-                    Task
-                  </th>
-                  <th>
-                    Assigned To
-                  </th>
-                  <th>
-                    Created By
-                  </th>
-                  <th>
-                    Priority
-                  </th>
-                  <th>
-                    Due
-                  </th>
-                  <th>
-                    Status
-                  </th>
-                  <th>
-                    Last Update
-                  </th>
-                  <th>
-                    Action
-                  </th>
+                  <th>ID</th>
+                  <th>Task</th>
+                  <th>Assigned To</th>
+                  <th>Created By</th>
+                  <th>Priority</th>
+                  <th>Due</th>
+                  <th>Status</th>
+                  <th>Last Update</th>
+                  <th>Action</th>
                 </tr>
               </thead>
-              <tbody id="taskRows">
-              </tbody>
+              <tbody id="taskRows"></tbody>
             </table>
           </div>
           <div class="panel task-report-panel hidden" id="taskReportPanel">
@@ -930,8 +903,7 @@
               <input id="reportTaskId" type="hidden">
               <label>
                 Report Summary
-                <textarea id="reportSummary" required placeholder="What was done?">
-                </textarea>
+                <textarea id="reportSummary" required placeholder="What was done?"></textarea>
               </label>
               <label>
                 Time Summary
@@ -939,18 +911,15 @@
               </label>
               <label>
                 Result / Outcome
-                <textarea id="reportResult" required placeholder="Final result / outcome">
-                </textarea>
+                <textarea id="reportResult" required placeholder="Final result / outcome"></textarea>
               </label>
               <label>
                 Issues / Observations
-                <textarea id="reportIssues" placeholder="Any issue, delay or observation">
-                </textarea>
+                <textarea id="reportIssues" placeholder="Any issue, delay or observation"></textarea>
               </label>
               <label>
                 Next Action
-                <textarea id="reportNextAction" placeholder="Follow-up / next step">
-                </textarea>
+                <textarea id="reportNextAction" placeholder="Follow-up / next step"></textarea>
               </label>
               <div>
                 <button type="submit" class="action success">
@@ -961,7 +930,6 @@
                 </button>
               </div>
             </form>
-            <!-- END SECTION: FORM -->
           </div>
         </section>
         <!-- END SECTION: SECTION -->

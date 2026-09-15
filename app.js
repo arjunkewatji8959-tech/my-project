@@ -98,7 +98,7 @@ async function loadPremiumDashboard(stats){
 
 async function refresh(){try{await loadLocationConfigs(); populateLocationSelects(); fillAutoAttendance(); const [s,a,f,ac,stats]=await Promise.all([api('/staff'),api('/attendance'),api('/fines'),api('/account/me'),api('/stats')]);staff=s;
 if(role==='field_officer'){const x=$('#createOfficerParent');if(x)x.value=user.staff_id;const l=$('#createOfficerLocation');if(l)l.value=user.location_code||'';const b=$('#myOfficerRows');if(b)b.innerHTML=staff.filter(x=>x.role==='officer'&&x.parent_id===user.staff_id).map(x=>`<tr><td>${escape(x.name)}</td><td>${escape(x.staff_id)}</td><td>${escape(x.location_code||'—')}</td><td>${escape(x.status||'active')}</td></tr>`).join('')||'<tr><td colspan=4>No Officers found.</td></tr>';}
-if(role==='officer'){const x=$('#createSupervisorParent');if(x)x.value=user.staff_id;const l=$('#createSupervisorLocation');if(l)l.value=user.location_code||'';const b=$('#mySupervisorRows');if(b)b.innerHTML=staff.filter(x=>x.role==='supervisor'&&x.parent_id===user.staff_id).map(x=>`<tr><td>${escape(x.name)}</td><td>${escape(x.staff_id)}</td><td>${escape(x.location_code||'—')}</td><td>${escape(x.status||'active')}</td></tr>`).join('')||'<tr><td colspan=4>No Supervisors found.</td></tr>';}
+
 window._attendanceRows=a;renderStaff(s);renderProfileRecords(s);fillCreateParent(s);renderAttendance(a);renderFines(f);renderAccount(ac);$$('[data-stat]').forEach(x=>x.textContent=stats[x.dataset.stat]??0);fillTargets(s);fillAdvanceTargets(s);renderDaily(a);loadNotices();loadHelp();loadPointTransfers();loadTaskTargets();loadTasks();if(!isAdminRole)loadTransferPoints();if(isAdminRole){loadPayroll();loadReports();loadRelievers();loadPointUpdates();loadDirectTransferPoints();}if(['supervisor','officer','field_officer'].includes(role))loadTeamAttendance();}catch(e){console.log(e.message)}}
 
 // END SECTION: FUNCTION refresh
@@ -472,7 +472,14 @@ function fillAutoAttendance(){
 // =====================================================
 async function startLiveCamera(){
   if(!navigator.mediaDevices?.getUserMedia)return;
-  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:720},height:{ideal:720}},audio:false});const v=$('#camera');if(v)v.srcObject=stream;}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'user'},width:{ideal:1280,min:640},height:{ideal:720,min:360},aspectRatio:{ideal:16/9}},
+      audio:false
+    });
+    const v=$('#camera');
+    if(v){v.srcObject=stream;v.setAttribute('playsinline','');v.muted=true;}
+  }
   catch(e){msg('Camera permission required. Tap Take Photo after allowing camera.');}
 }
 // END SECTION: FUNCTION startLiveCamera
@@ -496,11 +503,35 @@ function getLiveGPS(){
 }
 // END SECTION: FUNCTION getLiveGPS
 
+function captureHorizontalFrame(video, maxWidth=1280, quality=.84){
+  if(!video?.videoWidth || !video?.videoHeight)return '';
+  const sw=video.videoWidth, sh=video.videoHeight;
+  const portrait=sh>sw;
+  const targetW=Math.min(maxWidth,1280), targetH=Math.round(targetW*9/16);
+  const c=document.createElement('canvas'); c.width=targetW; c.height=targetH;
+  const ctx=c.getContext('2d'); ctx.imageSmoothingQuality='high';
+  ctx.save();
+  if(portrait){
+    // Mobile portrait stream ko 90° rotate karke horizontal photo banayein.
+    const rotatedW=sh, rotatedH=sw;
+    const scale=Math.max(targetW/rotatedW,targetH/rotatedH);
+    const dw=rotatedW*scale, dh=rotatedH*scale;
+    ctx.translate(targetW/2,targetH/2); ctx.rotate(Math.PI/2);
+    ctx.drawImage(video,-dw/2,-dh/2,dw,dh);
+  }else{
+    const scale=Math.max(targetW/sw,targetH/sh);
+    const dw=sw*scale, dh=sh*scale;
+    ctx.drawImage(video,(targetW-dw)/2,(targetH-dh)/2,dw,dh);
+  }
+  ctx.restore();
+  return c.toDataURL('image/jpeg',quality);
+}
+
 $('#capturePhoto')?.addEventListener('click',async()=>{
   if(!stream)await startLiveCamera();
   const v=$('#camera');if(!v?.videoWidth)return alert('Camera permission allow karein, phir Take Photo dabayein.');
-  const c=document.createElement('canvas');c.width=Math.min(v.videoWidth,720);c.height=Math.round(c.width*(v.videoHeight/v.videoWidth));c.getContext('2d').drawImage(v,0,0,c.width,c.height);
-  photo=c.toDataURL('image/jpeg',.7);const img=$('#captured');if(img)img.src=photo;msg('Photo captured ✓');
+  photo=captureHorizontalFrame(v,1280,.84);
+  const img=$('#captured');if(img)img.src=photo;msg('Horizontal photo captured ✓');
 });
 $('#retakePhoto')?.addEventListener('click',()=>{photo='';const img=$('#captured');if(img)img.removeAttribute('src');startLiveCamera();});
 $('#checkIn')?.addEventListener('click',async()=>{
@@ -549,8 +580,8 @@ fillAutoAttendance(); getLiveGPS(); startLiveCamera();
 $('#fineReason')?.addEventListener('change',e=>{const opt=e.target.selectedOptions[0];const amount=opt?.dataset?.amount||'';const x=$('#fineAmount');if(x && amount)x.value=amount;const custom=$('#fineCustomReason');if(custom && e.target.value)custom.value='';});
 
 let fineStream=null;
-$('#startFineCamera')?.addEventListener('click',async()=>{try{fineStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});$('#fineCamera').srcObject=fineStream;}catch(e){alert('Camera permission required: '+e.message)}});
-$('#captureFinePhoto')?.addEventListener('click',()=>{const v=$('#fineCamera'),c=document.createElement('canvas');if(!v.videoWidth)return alert('Start camera first');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);const data=c.toDataURL('image/jpeg',.82);$('#finePhoto').value=data;$('#finePreview').src=data;$('#finePreview').style.display='block';if(fineStream){fineStream.getTracks().forEach(t=>t.stop());fineStream=null;}msg('Fine photo captured ✓')});
+$('#startFineCamera')?.addEventListener('click',async()=>{try{fineStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},aspectRatio:{ideal:16/9}},audio:false});const v=$('#fineCamera');if(v)v.srcObject=fineStream;}catch(e){alert('Camera permission required: '+e.message)}});
+$('#captureFinePhoto')?.addEventListener('click',()=>{const v=$('#fineCamera');if(!v?.videoWidth)return alert('Start camera first');const data=captureHorizontalFrame(v,1280,.86);$('#finePhoto').value=data;$('#finePreview').src=data;$('#finePreview').style.display='block';if(fineStream){fineStream.getTracks().forEach(t=>t.stop());fineStream=null;}msg('Horizontal fine photo captured ✓')});
 $$('form[data-type]').forEach(form=>form.addEventListener('submit',async e=>{
   e.preventDefault();
   const d=Object.fromEntries(new FormData(form));
@@ -671,7 +702,7 @@ $('#attendanceMonth')?.addEventListener('change',()=>renderAttendance(window._at
 // =====================================================
 // SECTION: FUNCTION taskCreateAllowed
 // =====================================================
-function taskCreateAllowed(){return ['master_admin','admin','field_officer','supervisor'].includes(role)}
+function taskCreateAllowed(){return ['master_admin','admin'].includes(role)}
 // END SECTION: FUNCTION taskCreateAllowed
 
 // =====================================================
@@ -682,7 +713,7 @@ async function loadTaskTargets(){
   if(!taskCreateAllowed()){ $('#taskCreateForm')?.closest('.task-create-panel')?.classList.add('hidden'); return; }
   try{
     const rows=await api('/task-targets');
-    sel.innerHTML='<option value="">Select Member</option>'+rows.map(x=>`<option value="${escape(x.staff_id)}">${escape(x.name)} — ${escape(label(x.role))} (${escape(x.staff_id)})${x.location_code?' • '+escape(x.location_code):''}</option>`).join('');
+    sel.innerHTML=rows.map(x=>`<option value="${escape(x.staff_id)}">${escape(x.name)} — ${escape(label(x.role))} (${escape(x.staff_id)})${x.location_code?' • '+escape(x.location_code):''}</option>`).join('') || '<option value="">No eligible members</option>';
   }catch(e){sel.innerHTML='<option value="">Unable to load members</option>'}
 }
 // END SECTION: FUNCTION loadTaskTargets
@@ -749,8 +780,22 @@ async function viewTaskUpdates(id){
 
 window.startTask=startTask;window.updateTask=updateTask;window.openTaskReport=openTaskReport;window.viewTaskUpdates=viewTaskUpdates;
 $('#taskCreateForm')?.addEventListener('submit',async e=>{
-  e.preventDefault(); const form=e.currentTarget; const fd=new FormData(form), body=Object.fromEntries(fd.entries());
-  try{await api('/tasks',{method:'POST',body:JSON.stringify(body)});msg('Task assigned ✓');form.reset();loadTaskTargets();loadTasks();}catch(err){alert(err.message)}
+  e.preventDefault();
+  const form=e.currentTarget;
+  const fd=new FormData(form);
+  const body=Object.fromEntries(fd.entries());
+  const selected=[...($('#taskAssignee')?.selectedOptions||[])].map(o=>o.value).filter(Boolean);
+  const typed=String($('#taskIds')?.value||'').split(',').map(x=>x.trim()).filter(Boolean);
+  body.assigned_to=[...new Map([...selected,...typed].map(x=>[x.toLowerCase(),x])).values()];
+  delete body.task_ids;
+  if(!body.assigned_to.length){alert('कम से कम एक Member या ID चुनें/लिखें');return;}
+  try{
+    const result=await api('/tasks',{method:'POST',body:JSON.stringify(body)});
+    msg(result.message||'Task assigned ✓');
+    form.reset();
+    loadTaskTargets();
+    loadTasks();
+  }catch(err){alert(err.message)}
 });
 $('#taskReportForm')?.addEventListener('submit',async e=>{
   e.preventDefault();
@@ -868,14 +913,14 @@ async function getPointGPS(){
 // =====================================================
 async function openPointCamera(){
   if(!navigator.mediaDevices?.getUserMedia)return;
-  try{pointStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});const v=$('#pointCamera');if(v)v.srcObject=pointStream;}catch(e){alert('Camera permission required for Point Update.');}
+  try{pointStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},aspectRatio:{ideal:16/9}},audio:false});const v=$('#pointCamera');if(v)v.srcObject=pointStream;}catch(e){alert('Camera permission required for Point Update.');}
 }
 // END SECTION: FUNCTION openPointCamera
 
 // =====================================================
 // SECTION: FUNCTION capturePointPhoto
 // =====================================================
-function capturePointPhoto(){const v=$('#pointCamera'),c=$('#pointCanvas');if(!v||!c)return; c.width=720;c.height=540;c.getContext('2d').drawImage(v,0,0,c.width,c.height);pointPhoto=c.toDataURL('image/jpeg',0.78);const img=$('#pointCaptured');if(img)img.src=pointPhoto;}
+function capturePointPhoto(){const v=$('#pointCamera');if(!v)return;pointPhoto=captureHorizontalFrame(v,1280,.84);const img=$('#pointCaptured');if(img)img.src=pointPhoto;}
 // END SECTION: FUNCTION capturePointPhoto
 
 // =====================================================
