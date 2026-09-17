@@ -6,7 +6,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <title>
       SNDF Dashboard
     </title>
@@ -57,6 +57,9 @@
         </button>
         <button data-view="help">
           ? Help
+        </button>
+        <button data-view="reliever-request">
+          ♻ Reliever Request
         </button>
         <button data-view="tasks">
           ✓ Task Management
@@ -112,6 +115,16 @@
                   Guard
                 </span>
               </div>
+            </div>
+          </div>
+          <div class="panel reliever-duty-panel" id="relieverDutyPanel">
+            <h3>♻ Reliever Point Duty</h3>
+            <p class="muted-note">Agar aap Reliever assigned hain, yahan aapka assigned point, duty hours aur shift dikhega. Reliever ek time par <b>1 Check-In + 1 Check-Out</b> kar sakta hai; agla shift complete hone ke baad hi naya attendance record banega.</p>
+            <div class="reliever-duty-grid">
+              <div><small>Point / Location</small><b id="relieverDutyLocation">—</b></div>
+              <div><small>Duty Hours</small><b id="relieverDutyHours">—</b></div>
+              <div><small>Shift</small><b id="relieverDutyShift">—</b></div>
+              <div><small>Shift Time</small><b id="relieverDutyTime">—</b></div>
             </div>
           </div>
           <div class="panel live-attendance-panel">
@@ -609,6 +622,27 @@
           </div>
         </section>
         <!-- END SECTION: SECTION -->
+        <section id="reliever-request" class="view hidden">
+          <h2>♻ Reliever Request</h2>
+          <div class="panel">
+            <p class="muted-note">Holiday, illness ya emergency ke liye request bhejein. Name, Staff ID aur Location Code aapke login se automatically aayega.</p>
+            <form id="relieverRequestForm" class="grid-form">
+              <label>Full Name<input id="requestName" value="Guard" readonly></label>
+              <label>Staff ID<input id="requestStaffId" value="GUARD-ID" readonly></label>
+              <label>Location Code<input id="requestLocation" name="location_code" value="" readonly></label>
+              <label>Request Type<select name="request_type" required><option value="">Select Request</option><option value="Holiday">Holiday</option><option value="Medical / Illness">Medical / Illness</option><option value="Emergency">Emergency</option></select></label>
+              <label>From Date<input type="date" name="from_date" required></label>
+              <label>To Date<input type="date" name="to_date" required></label>
+              <label style="grid-column:1/-1">Reason / Details<textarea name="reason" placeholder="Holiday reason / illness details" required></textarea></label>
+              <button class="action primary-action" type="submit">📨 Submit Reliever Request</button>
+            </form>
+          </div>
+          <div>
+            <h3>My Requests</h3>
+            <div id="myRelieverRequestRows"><p class="muted-note">Loading…</p></div>
+          </div>
+        </section>
+        <!-- END SECTION: RELIEVER REQUEST -->
         <section id="tasks" class="view hidden">
           <h2>
             Task Management

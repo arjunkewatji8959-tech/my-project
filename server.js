@@ -133,6 +133,16 @@ db.serialize(()=>{
     from_location TEXT, to_location TEXT NOT NULL, reason TEXT, status TEXT DEFAULT 'Pending',
     requested_at TEXT NOT NULL, reviewed_at TEXT, reviewed_by TEXT
   )`);
+  // RELIEVER REQUESTS - Guard/Supervisor can request holiday or medical leave;
+  // Admin/Master Admin approve/reject and select the replacement reliever.
+  db.run(`CREATE TABLE IF NOT EXISTS reliever_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    staff_id TEXT NOT NULL, staff_name TEXT NOT NULL, staff_role TEXT NOT NULL,
+    location_code TEXT NOT NULL, request_type TEXT NOT NULL, reason TEXT NOT NULL,
+    from_date TEXT NOT NULL, to_date TEXT NOT NULL, status TEXT DEFAULT 'Pending',
+    reliever_id TEXT, reliever_name TEXT, reliever_location TEXT,
+    reviewed_at TEXT, reviewed_by TEXT, created_at TEXT NOT NULL
+  )`);
 
   db.run(`CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id TEXT, actor_role TEXT,
@@ -642,9 +652,14 @@ app.post('/api/relievers/assign',auth,roles('admin','master_admin'),async(req,re
 });
 
 // RELIEVER MANAGEMENT - Admin selects Guard/Supervisor, can change their location and mark a reliever check-in.
-app.get('/api/relievers',auth,roles('admin','master_admin'),(req,res)=>{
-  all(`SELECT id,role,name,staff_id,location_code,parent_id,status,is_reliever,reliever_duty_hours,reliever_shift FROM staff
-       WHERE role IN ('officer','supervisor','guard') ORDER BY role,name`,[],res);
+app.get('/api/relievers',auth,roles('admin','master_admin','field_officer'),(req,res)=>{
+  const isAdmin=['admin','master_admin'].includes(req.user.role);
+  if(isAdmin){
+    return all(`SELECT id,role,name,staff_id,location_code,parent_id,status,is_reliever,reliever_duty_hours,reliever_shift,contact_number FROM staff
+         WHERE role IN ('officer','supervisor','guard') ORDER BY role,name`,[],res);
+  }
+  all(`SELECT id,role,name,staff_id,location_code,parent_id,status,is_reliever,reliever_duty_hours,reliever_shift,contact_number FROM staff
+       WHERE role IN ('officer','supervisor','guard') AND status='active' AND (location_code IN (SELECT location_code FROM location_assignments WHERE staff_id=?) OR location_code=?) ORDER BY role,name`,[req.user.staff_id,req.user.location_code||''],res);
 });
 app.put('/api/staff/:id/reliever',auth,roles('admin','master_admin'),(req,res)=>{
   const enabled=Number(req.body?.is_reliever)?1:0;
@@ -672,27 +687,189 @@ app.put('/api/staff/:id/location',auth,roles('admin','master_admin'),(req,res)=>
   });
   });
 });
-app.post('/api/reliever-checkin',auth,roles('admin','master_admin'),(req,res)=>{
-  const x=req.body||{}, targetId=String(x.staff_id||'').trim(), location=String(x.location_code||'').trim();
-  const shift=SHIFT_SCHEDULES[x.shift]?x.shift:'Day Shift';
+app.post('/api/reliever-checkin',auth,(req,res)=>{
+  const x=req.body||{};
+  const adminRequest=['admin','master_admin'].includes(req.user.role);
+  const targetId=adminRequest ? String(x.staff_id||'').trim() : req.user.staff_id;
+  const location=adminRequest ? String(x.location_code||'').trim() : String(req.user.location_code||'').trim();
   if(!targetId||!location)return res.status(400).json({error:'Select reliever and location'});
   get('SELECT * FROM staff WHERE staff_id=? AND role IN ("officer","supervisor","guard")',[targetId],(err,s)=>{
     if(err)return res.status(500).json({error:err.message});
     if(!s)return res.status(404).json({error:'Reliever Officer/Supervisor/Guard not found'});
-    if(!s.is_reliever)return res.status(403).json({error:'Selected member is not marked as Reliever'});
+    if(!adminRequest && s.staff_id!==req.user.staff_id)return res.status(403).json({error:'You can mark only your own Reliever attendance'});
+    if(!s.is_reliever)return res.status(403).json({error:'You are not marked as a Reliever'});
+    const dutyHours=Number(s.reliever_duty_hours)===8?8:12;
+    const shift=SHIFT_SCHEDULES[s.reliever_shift]?s.reliever_shift:(SHIFT_SCHEDULES[x.shift]?x.shift:(dutyHours===8?'Morning Shift':'Day Shift'));
     const now=new Date(), date=now.toISOString().slice(0,10), time=now.toTimeString().slice(0,8), iso=now.toISOString();
-    get('SELECT id FROM attendance WHERE staff_id=? AND date=? ORDER BY id DESC LIMIT 1',[targetId,date],(ae,existing)=>{
+    if(!adminRequest){
+      const schedule=SHIFT_SCHEDULES[shift];
+      const [sh,sm]=schedule.start.split(':').map(Number);
+      const start=new Date(now); start.setHours(sh,sm,0,0);
+      if((shift==='Night Shift' && now.getHours()<8) || (shift==='Night Shift 8H' && now.getHours()<6)) start.setDate(start.getDate()-1);
+      const minutesLate=(now-start)/60000;
+      if(minutesLate>30)return res.status(403).json({error:`Reliever check-in closed: ${shift} opens at ${schedule.start}. 30-minute window passed.`});
+      if(minutesLate < -30)return res.status(403).json({error:`Reliever check-in opens at ${schedule.start} for ${shift}.`});
+    }
+    get('SELECT id FROM attendance WHERE staff_id=? AND check_out IS NULL ORDER BY id DESC LIMIT 1',[targetId],(ae,open)=>{
       if(ae)return res.status(500).json({error:ae.message});
-      if(existing)return res.status(409).json({error:'Reliever already has attendance today'});
-      db.run('UPDATE staff SET location_code=? WHERE id=?',[location,s.id],(ue)=>{
-        if(ue)return res.status(500).json({error:ue.message});
-        run('INSERT INTO attendance(staff_id,name,date,photo,location,shift,check_in,check_in_at,attendance_status) VALUES(?,?,?,?,?,?,?,?,?)',
-          [s.staff_id,s.name,date,x.photo||'',location,shift,time,iso,'Present - Reliever Check-In'],res,row=>{
-            audit(req.user,'RELIEVER_CHECKIN',s.staff_id,`${shift}; location=${location}`);
-            res.status(201).json({id:row.lastID,message:'Reliever check-in saved'});
+      if(open)return res.status(409).json({error:'Reliever already has an open shift. Please Check Out first.'});
+      get('SELECT id FROM attendance WHERE staff_id=? AND date=? AND shift=? ORDER BY id DESC LIMIT 1',[targetId,date,shift],(de,existing)=>{
+        if(de)return res.status(500).json({error:de.message});
+        if(existing)return res.status(409).json({error:`${shift} Reliever attendance is already completed today`});
+        checkGeofence(location,x.location||'',(ge,geo)=>{
+          if(ge)return res.status(500).json({error:ge.message});
+          if(geo.configured && !geo.allowed)return res.status(403).json({error:geo.error||`You are outside ${location} geofence (${geo.distance}m / ${geo.radius}m).`});
+          db.run('UPDATE staff SET location_code=? WHERE id=?',[location,s.id],(ue)=>{
+            if(ue)return res.status(500).json({error:ue.message});
+            run('INSERT INTO attendance(staff_id,name,date,photo,location,shift,duty_hours,check_in,check_in_at,attendance_status) VALUES(?,?,?,?,?,?,?,?,?,?)',
+              [s.staff_id,s.name,date,x.photo||'',location,shift,dutyHours,time,iso,'Present - Reliever Check-In'],res,row=>{
+                audit(req.user,'RELIEVER_CHECKIN',s.staff_id,`${shift}; ${dutyHours} hour duty; location=${location}; self=${!adminRequest}`);
+                res.status(201).json({id:row.lastID,message:'Reliever check-in saved',shift,shift_time:`${SHIFT_SCHEDULES[shift].start} - ${SHIFT_SCHEDULES[shift].end}`,duty_hours:dutyHours});
+              });
           });
+        });
       });
     });
+  });
+});
+
+// RELIEVER REQUESTS - Guard/Supervisor request leave/medical relief; Admin/Master Admin review.
+app.get('/api/reliever-requests',auth,(req,res)=>{
+  const isAdmin=['admin','master_admin'].includes(req.user.role);
+  const isFieldOfficer=req.user.role==='field_officer';
+  const sql=isAdmin
+    ? `SELECT * FROM reliever_requests ORDER BY CASE status WHEN 'Pending' THEN 0 ELSE 1 END, id DESC LIMIT 300`
+    : isFieldOfficer
+      ? `SELECT * FROM reliever_requests WHERE location_code IN (SELECT location_code FROM location_assignments WHERE staff_id=?) OR location_code=? ORDER BY CASE status WHEN 'Pending' THEN 0 ELSE 1 END, id DESC LIMIT 300`
+      : `SELECT * FROM reliever_requests WHERE staff_id=? ORDER BY id DESC LIMIT 100`;
+  const params=isAdmin?[]:(isFieldOfficer?[req.user.staff_id,req.user.location_code]:[req.user.staff_id]);
+  all(sql,params,res);
+});
+
+app.post('/api/reliever-requests',auth,roles('guard','supervisor'),(req,res)=>{
+  const x=req.body||{};
+  const type=String(x.request_type||'').trim();
+  const reason=String(x.reason||'').trim();
+  const from=String(x.from_date||'').trim();
+  const to=String(x.to_date||'').trim();
+  const location=String(req.user.location_code||x.location_code||'').trim();
+  const allowed=['Holiday','Medical / Illness','Emergency'];
+  if(!allowed.includes(type))return res.status(400).json({error:'Select a valid request type'});
+  if(!from||!to||!reason)return res.status(400).json({error:'Request type, dates and reason are required'});
+  if(to<from)return res.status(400).json({error:'To date cannot be before From date'});
+  if(!location)return res.status(400).json({error:'Your Location Code is not assigned'});
+  get(`SELECT id FROM reliever_requests WHERE staff_id=? AND status IN ('Pending','Approved')
+       AND NOT (to_date < ? OR from_date > ?) LIMIT 1`,[req.user.staff_id,from,to],(e,existing)=>{
+    if(e)return res.status(500).json({error:e.message});
+    if(existing)return res.status(409).json({error:'You already have a pending/approved reliever request for these dates'});
+    const now=new Date().toISOString();
+    run(`INSERT INTO reliever_requests(staff_id,staff_name,staff_role,location_code,request_type,reason,from_date,to_date,status,created_at)
+         VALUES(?,?,?,?,?,?,?,?,?,?)`,[req.user.staff_id,req.user.name,req.user.role,location,type,reason,from,to,'Pending',now],res,row=>{
+      audit(req.user,'RELIEVER_REQUEST_CREATED',req.user.staff_id,`${type}; ${from} to ${to}; ${location}`);
+      res.status(201).json({id:row.lastID,message:'Reliever request submitted to Admin'});
+    });
+  });
+});
+
+app.put('/api/reliever-requests/:id/approve',auth,roles('admin','master_admin','field_officer'),async(req,res)=>{
+  const relieverId=String(req.body?.reliever_id||'').trim();
+  if(!relieverId)return res.status(400).json({error:'Select the Reliever who will cover this duty'});
+  get('SELECT * FROM reliever_requests WHERE id=?',[req.params.id],(e,r)=>{
+    if(e)return res.status(500).json({error:e.message});
+    if(!r)return res.status(404).json({error:'Reliever request not found'});
+    if(r.status!=='Pending')return res.status(409).json({error:'Request already reviewed'});
+
+    const isAdmin=['admin','master_admin'].includes(req.user.role);
+    const isFieldOfficer=req.user.role==='field_officer';
+    const checkFieldLocation=(location,done)=>{
+      if(!isFieldOfficer || isAdmin)return done(true);
+      get('SELECT 1 FROM location_assignments WHERE staff_id=? AND location_code=? LIMIT 1',[req.user.staff_id,location],(ve,va)=>{
+        if(ve)return res.status(500).json({error:ve.message});
+        done(Boolean(va)||String(req.user.location_code||'')===String(location||''));
+      });
+    };
+
+    checkFieldLocation(r.location_code,(allowed)=>{
+      if(!allowed)return res.status(403).json({error:'You can approve/assign only requests from your assigned locations'});
+      get(`SELECT id,name,staff_id,role,location_code,status,is_reliever,contact_number FROM staff
+           WHERE staff_id=? AND role IN ('officer','supervisor','guard')`,[relieverId],async(re,rel)=>{
+        if(re)return res.status(500).json({error:re.message});
+        if(!rel)return res.status(404).json({error:'Selected Reliever not found'});
+        if(rel.status!=='active')return res.status(400).json({error:'Selected Reliever is not active'});
+        if(!Number(rel.is_reliever))return res.status(400).json({error:'Selected staff is not marked as Reliever in Reliever Management'});
+        if(String(rel.location_code||'')!==String(r.location_code||''))return res.status(400).json({error:`Reliever Location must match request Location ${r.location_code}`});
+        checkFieldLocation(rel.location_code,(relAllowed)=>{
+          if(!relAllowed)return res.status(403).json({error:'Selected Reliever is outside your assigned locations'});
+          const reviewedAt=new Date().toISOString();
+          run(`UPDATE reliever_requests SET status='Approved',reliever_id=?,reliever_name=?,reliever_location=?,reviewed_at=?,reviewed_by=? WHERE id=?`,
+            [rel.staff_id,rel.name,rel.location_code,reviewedAt,req.user.staff_id,r.id],res,async()=>{
+              const requesterText=`SNDF Reliever Request
+
+Hello ${r.staff_name},
+Your ${r.request_type} request has been APPROVED.
+
+Leave: ${r.from_date} to ${r.to_date}
+Location: ${r.location_code}
+Reason: ${r.reason}
+
+Reliever: ${rel.name}
+Reliever ID: ${rel.staff_id}
+Reliever Location: ${rel.location_code}
+Approved by: ${req.user.name||req.user.staff_id}
+
+SNDF Support Services`;
+              const relieverText=`SNDF Reliever Duty
+
+Hello ${rel.name},
+You are assigned as RELIEVER for ${r.staff_name}.
+
+Staff ID: ${r.staff_id}
+Leave: ${r.from_date} to ${r.to_date}
+Location: ${r.location_code}
+Request: ${r.request_type}
+Reason: ${r.reason}
+
+Please report to the location and complete attendance as required.
+
+SNDF Support Services`;
+              get('SELECT contact_number FROM staff WHERE staff_id=?',[r.staff_id],async(ce,requester)=>{
+                const [waRequester,waReliever]=await Promise.all([sendWhatsAppMessage(requester?.contact_number||'',requesterText),sendWhatsAppMessage(rel.contact_number,relieverText)]);
+                db.run(`INSERT INTO notifications(staff_id,title,message,type,created_at) VALUES(?,?,?,?,?)`,[r.staff_id,'Reliever Request Approved',requesterText,'reliever',reviewedAt]);
+                db.run(`INSERT INTO notifications(staff_id,title,message,type,created_at) VALUES(?,?,?,?,?)`,[rel.staff_id,'Reliever Duty Assigned',relieverText,'reliever',reviewedAt]);
+                audit(req.user,'RELIEVER_REQUEST_APPROVED',r.staff_id,`reliever=${rel.staff_id}; location=${r.location_code}; approved_by=${req.user.staff_id}; whatsapp=${waRequester.sent&&waReliever.sent?'both-sent':'not-both'}`);
+                res.json({message:'Request approved and Reliever assigned',reliever:{id:rel.staff_id,name:rel.name,location:rel.location_code},whatsapp_requester:waRequester.sent,whatsapp_reliever:waReliever.sent});
+              });
+            });
+        });
+      });
+    });
+  });
+});
+
+app.put('/api/reliever-requests/:id/reject',auth,roles('admin','master_admin','field_officer'),(req,res)=>{
+  const reason=String(req.body?.reason||'').trim();
+  get('SELECT * FROM reliever_requests WHERE id=?',[req.params.id],(e,r)=>{
+    if(e)return res.status(500).json({error:e.message});
+    if(!r)return res.status(404).json({error:'Reliever request not found'});
+    if(r.status!=='Pending')return res.status(409).json({error:'Request already reviewed'});
+    const rejectRequest=()=>{
+      const reviewedAt=new Date().toISOString();
+      run(`UPDATE reliever_requests SET status='Rejected',reviewed_at=?,reviewed_by=? WHERE id=?`,[reviewedAt,req.user.staff_id,r.id],res,async()=>{
+        const text=`SNDF Reliever Request\n\nHello ${r.staff_name},\nYour ${r.request_type} request for ${r.from_date} to ${r.to_date} has been REJECTED.\n\nLocation: ${r.location_code}\nReason: ${r.reason}${reason?`\nReview Note: ${reason}`:''}\n\nReviewed by: ${req.user.name||req.user.staff_id}\n\nSNDF Support Services`;
+        const target=await new Promise(resolve=>get('SELECT contact_number FROM staff WHERE staff_id=?',[r.staff_id],(ee,rr)=>resolve(rr?.contact_number||'')));
+        const wa=await sendWhatsAppMessage(target,text);
+        db.run(`INSERT INTO notifications(staff_id,title,message,type,created_at) VALUES(?,?,?,?,?)`,[r.staff_id,'Reliever Request Rejected',text,'reliever',reviewedAt]);
+        audit(req.user,'RELIEVER_REQUEST_REJECTED',r.staff_id,reason||'No review note');
+        res.json({message:'Reliever request rejected',whatsapp_sent:wa.sent});
+      });
+    };
+    if(req.user.role==='field_officer'){
+      get('SELECT 1 FROM location_assignments WHERE staff_id=? AND location_code=? LIMIT 1',[req.user.staff_id,r.location_code],(ve,va)=>{
+        if(ve)return res.status(500).json({error:ve.message});
+        if(va || String(req.user.location_code||'')===String(r.location_code||''))return rejectRequest();
+        return res.status(403).json({error:'You can reject only requests from your assigned locations'});
+      });
+    } else rejectRequest();
   });
 });
 
@@ -1089,15 +1266,16 @@ app.post('/api/attendance',auth,(req,res)=>{
     if(!['admin','master_admin'].includes(req.user.role) && s.staff_id!==req.user.staff_id)return res.status(403).json({error:'You can mark attendance only for yourself'});
     get('SELECT duty_hours FROM locations WHERE code=? AND active=1',[s.location_code],(le,loc)=>{
     if(le)return res.status(500).json({error:le.message});
-    const dutyHours=Number(loc?.duty_hours)===8?8:12;
-    const shift=String(x.shift||'');
+    const assignedReliever=Number(s.is_reliever)===1;
+    const dutyHours=assignedReliever ? (Number(s.reliever_duty_hours)===8?8:12) : (Number(loc?.duty_hours)===8?8:12);
+    const shift=assignedReliever && SHIFT_SCHEDULES[s.reliever_shift] ? s.reliever_shift : String(x.shift||'');
     if(!isShiftAllowedForDuty(shift,dutyHours)) return res.status(400).json({error:`Invalid shift for ${dutyHours}-hour location. Allowed: ${shiftForDutyHours(dutyHours).join(', ')}`});
     checkGeofence(s.location_code,x.location||'',(ge,geo)=>{
     if(ge)return res.status(500).json({error:ge.message});
     if(geo.configured && !geo.allowed) return res.status(403).json({error:geo.error||`You are outside ${s.location_code} geofence (${geo.distance}m / ${geo.radius}m).`});
     const now=new Date(), date=now.toISOString().slice(0,10), time=now.toTimeString().slice(0,8), iso=now.toISOString();
-    // 30-minute check-in window: normal staff cannot start a shift more than 30 minutes after shift start.
-    // Admin reliever check-ins use the dedicated reliever endpoint and are exempt from this window.
+    // 30-minute check-in window: staff (including Relievers) can start only within
+    // 30 minutes before/after the assigned/current shift start. Admins are exempt.
     if(!['admin','master_admin'].includes(req.user.role)){
       const schedule=SHIFT_SCHEDULES[shift];
       const [sh,sm]=schedule.start.split(':').map(Number);

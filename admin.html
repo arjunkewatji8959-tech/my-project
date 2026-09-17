@@ -6,7 +6,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <title>
       SNDF Dashboard
     </title>
@@ -45,6 +45,9 @@
         </button>
         <button data-view="reliever">
           ♻ Reliever Management
+        </button>
+        <button data-view="reliever-requests">
+          📨 Reliever Requests
         </button>
         <button data-view="point-updates">
           📸 Point Update
@@ -657,6 +660,19 @@
           </div>
         </section>
         <!-- END SECTION: SECTION -->
+        <section id="reliever-requests" class="view hidden">
+          <h2>📨 Reliever Requests</h2>
+          <div class="panel">
+            <p class="muted-note">Guard/Supervisor ki Holiday, Medical / Illness aur Emergency requests yahan aayengi. Approve karne se pehle same Location Code ka active Reliever select karein. Approval ke baad requester aur Reliever dono ko in-app notification/WhatsApp notification milne ki koshish hogi.</p>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Role</th><th>Name</th><th>ID</th><th>Location</th><th>Request</th><th>From → To</th><th>Reason</th><th>Status</th><th>Reliever</th><th>Action</th></tr></thead>
+                <tbody id="relieverRequestRows"><tr><td colspan="10">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        <!-- END SECTION: RELIEVER REQUESTS -->
         <section id="point-updates" class="view hidden">
           <h2>
             Hourly Point Updates
