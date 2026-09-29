@@ -99,7 +99,7 @@ async function loadPremiumDashboard(stats){
 async function refresh(){try{await loadLocationConfigs(); populateLocationSelects(); fillAutoAttendance(); const [s,a,f,ac,stats]=await Promise.all([api('/staff'),api('/attendance'),api('/fines'),api('/account/me'),api('/stats')]);staff=s;
 if(role==='field_officer'){const x=$('#createOfficerParent');if(x)x.value=user.staff_id;const l=$('#createOfficerLocation');if(l)l.value=user.location_code||'';const b=$('#myOfficerRows');if(b)b.innerHTML=staff.filter(x=>x.role==='officer'&&x.parent_id===user.staff_id).map(x=>`<tr><td>${escape(x.name)}</td><td>${escape(x.staff_id)}</td><td>${escape(x.location_code||'—')}</td><td>${escape(x.status||'active')}</td></tr>`).join('')||'<tr><td colspan=4>No Officers found.</td></tr>';}
 
-window._attendanceRows=a;renderStaff(s);renderProfileRecords(s);fillCreateParent(s);if($('#requestName'))$('#requestName').value=user.name||'';if($('#requestStaffId'))$('#requestStaffId').value=user.staff_id||'';if($('#requestLocation'))$('#requestLocation').value=user.location_code||'';renderAttendance(a);renderFines(f);renderAccount(ac);$$('[data-stat]').forEach(x=>x.textContent=stats[x.dataset.stat]??0);fillTargets(s);fillAdvanceTargets(s);renderDaily(a);loadNotices();loadHelp();loadPointTransfers();loadTaskTargets();loadTasks();loadRelieverRequests();if(!isAdminRole)loadTransferPoints();if(isAdminRole){loadPayroll();loadReports();loadRelievers();loadPointUpdates();loadDirectTransferPoints();}else if(role==='field_officer'){loadRelievers();}if(['supervisor','officer','field_officer'].includes(role))loadTeamAttendance();}catch(e){console.log(e.message)}}
+window._attendanceRows=a;renderStaff(s);renderProfileRecords(s);fillCreateParent(s);renderAttendance(a);renderFines(f);renderAccount(ac);$$('[data-stat]').forEach(x=>x.textContent=stats[x.dataset.stat]??0);fillTargets(s);fillAdvanceTargets(s);renderDaily(a);loadNotices();loadHelp();loadPointTransfers();loadTaskTargets();loadTasks();if(!isAdminRole)loadTransferPoints();if(isAdminRole){loadPayroll();loadReports();loadRelievers();loadPointUpdates();loadDirectTransferPoints();}if(['supervisor','officer','field_officer'].includes(role))loadTeamAttendance();}catch(e){console.log(e.message)}}
 
 // END SECTION: FUNCTION refresh
 
@@ -373,6 +373,7 @@ async function loadProfile(){
     ['name','post','salary','dob','department','location_code','contact_number','age','height','weight','blood_group','qualification','physical_level','medical_level','skills','police_verification','driving_license','training_details','work_experience','photo_front','photo_back','photo_left','photo_right','dp'].forEach(k=>{
       const x=$('#p_'+k); if(x)x.value=s[k]??'';
     });
+    const dpImg=$('#p_dp_preview');if(dpImg)dpImg.src=s.dp||s.photo_front||'assets-logo.png';
     ['front','back','left','right'].forEach(k=>{const v=s['photo_'+k]||'assets-logo.png',img=$('#p_photo_'+k+'_preview');if(img)img.src=v;});
     sessionStorage.setItem('sndfUser',JSON.stringify(s)); renderTopProfile(s);
   }catch(e){}
@@ -421,7 +422,7 @@ async function loadLocationConfigs(){try{const rows=await api('/locations'); loc
 // =====================================================
 // SECTION: FUNCTION currentDutyHours
 // =====================================================
-function currentDutyHours(){if(Number(user?.is_reliever)===1 && (Number(user?.reliever_duty_hours)===8||Number(user?.reliever_duty_hours)===12)) return Number(user.reliever_duty_hours); const code=String(user?.location_code||''); return Number(locationConfigs[code]?.duty_hours)===8?8:12;}
+function currentDutyHours(){const code=String(user?.location_code||''); return Number(locationConfigs[code]?.duty_hours)===8?8:12;}
 // END SECTION: FUNCTION currentDutyHours
 
 // =====================================================
@@ -447,7 +448,6 @@ function populateLocationSelects(){
 // =====================================================
 
 function currentShift(){
-  if(Number(user?.is_reliever)===1 && ['Day Shift','Night Shift','Morning Shift','Evening Shift','Night Shift 8H'].includes(user?.reliever_shift)) return user.reliever_shift;
   const h=new Date().getHours(), duty=currentDutyHours();
   if(duty===8){
     if(h>=6&&h<14)return 'Morning Shift';
@@ -465,14 +465,6 @@ function currentShift(){
 function fillAutoAttendance(){
   const map={autoName:user?.name,autoStaffId:user?.staff_id,autoRole:label(user?.role),autoLocationCode:user?.location_code||'—',autoParentId:user?.parent_id||'—',autoShift:currentShift()+' • '+currentDutyHours()+' Hours Duty',autoDutyHours:currentDutyHours()+' Hours'};
   Object.entries(map).forEach(([id,v])=>{const x=$('#'+id);if(x)x.textContent=v||'—'});
-  const rp=$('#relieverDutyPanel');
-  if(rp){
-    const active=Number(user?.is_reliever)===1; rp.style.display=active?'block':'none';
-    const vals={relieverDutyLocation:user?.location_code||'—',relieverDutyHours:active?(currentDutyHours()+' Hours'):'—',relieverDutyShift:active?(currentShift()):'—',relieverDutyTime:active?({
-      'Day Shift':'08:00 - 20:00','Night Shift':'20:00 - 08:00','Morning Shift':'06:00 - 14:00','Evening Shift':'14:00 - 22:00','Night Shift 8H':'22:00 - 06:00'
-    }[currentShift()]||'—'):'—'};
-    Object.entries(vals).forEach(([id,v])=>{const x=$('#'+id);if(x)x.textContent=v;});
-  }
 }
 // END SECTION: FUNCTION fillAutoAttendance
 
@@ -816,64 +808,17 @@ $('#taskReportForm')?.addEventListener('submit',async e=>{
 $('#cancelTaskReport')?.addEventListener('click',()=>$('#taskReportPanel')?.classList.add('hidden'));
 
 // =====================================================
-// SECTION: RELIEVER REQUEST MANAGEMENT
-// =====================================================
-async function loadRelieverRequests(){
-  const table=$('#relieverRequestRows'), mine=$('#myRelieverRequestRows');
-  if(!table&&!mine)return;
-  try{
-    const rows=await api('/reliever-requests');
-    if(table){
-      const relievers=(window._relievers||[]).filter(x=>x.status==='active'&&Number(x.is_reliever)===1);
-      table.innerHTML=rows.map(x=>{
-        const options=relievers.filter(r=>String(r.location_code||'')===String(x.location_code||'')).map(r=>`<option value="${escape(r.staff_id)}">${escape(r.name)} — ${escape(r.staff_id)} — ${escape(r.location_code||'')}</option>`).join('');
-        const canReviewRelieverRequest=isAdminRole || role==='field_officer';
-        const action=(canReviewRelieverRequest && x.status==='Pending') ? `<select id="requestReliever_${x.id}"><option value="">Select Reliever</option>${options}</select> <button class="action success" onclick="approveRelieverRequest(${x.id})">✓ Approve</button> <button class="action danger" onclick="rejectRelieverRequest(${x.id})">✕ Reject</button>` : (canReviewRelieverRequest?'—':'View Only');
-        const assigned=x.reliever_id?`${escape(x.reliever_name)} (${escape(x.reliever_id)})<br><small>${escape(x.reliever_location||'—')}</small>`:'—';
-        return `<tr><td>${escape(label(x.staff_role))}</td><td>${escape(x.staff_name)}</td><td>${escape(x.staff_id)}</td><td>${escape(x.location_code)}</td><td>${escape(x.request_type)}</td><td>${escape(x.from_date)} → ${escape(x.to_date)}</td><td>${escape(x.reason)}</td><td><b>${escape(x.status)}</b></td><td>${assigned}</td><td>${action}</td></tr>`;
-      }).join('')||'<tr><td colspan=10>No reliever requests.</td></tr>';
-      if(role==='field_officer' && rows.some(x=>x.status==='Pending')) msg(`📨 ${rows.filter(x=>x.status==='Pending').length} pending Reliever Request(s) for your locations`);
-    }
-    if(mine){
-      mine.innerHTML=rows.map(x=>{
-        const assigned=x.reliever_id?`${escape(x.reliever_name)} (${escape(x.reliever_id)}) • ${escape(x.reliever_location||'—')}`:'Not assigned yet';
-        return `<div class="panel reliever-request-card"><div><b>${escape(x.request_type)}</b> <span class="request-status">${escape(x.status)}</span></div><p><b>${escape(x.from_date)} → ${escape(x.to_date)}</b> • Location: <b>${escape(x.location_code)}</b></p><p>${escape(x.reason)}</p><p>Reliever: <b>${assigned}</b></p><small>${escape(x.created_at||'')}</small></div>`;
-      }).join('')||'<p class="muted-note">No requests submitted yet.</p>';
-    }
-  }catch(e){console.log('Reliever requests:',e.message)}
-}
-
-async function approveRelieverRequest(id){
-  const sel=$('#requestReliever_'+id); const reliever_id=sel?.value||'';
-  if(!reliever_id)return alert('Select the Reliever who will cover this duty.');
-  if(!confirm('Approve this leave request and assign the selected Reliever?'))return;
-  try{const r=await api('/reliever-requests/'+id+'/approve',{method:'PUT',body:JSON.stringify({reliever_id})});msg(r.message||'Request approved ✓');loadRelieverRequests();if(isAdminRole)loadRelievers();else loadRelieverRequests();}catch(e){alert(e.message)}
-}
-async function rejectRelieverRequest(id){
-  const reason=prompt('Optional rejection note:',''); if(reason===null)return;
-  if(!confirm('Reject this reliever request?'))return;
-  try{const r=await api('/reliever-requests/'+id+'/reject',{method:'PUT',body:JSON.stringify({reason})});msg(r.message||'Request rejected');loadRelieverRequests();}catch(e){alert(e.message)}
-}
-window.approveRelieverRequest=approveRelieverRequest;window.rejectRelieverRequest=rejectRelieverRequest;
-
-$('#relieverRequestForm')?.addEventListener('submit',async e=>{
-  e.preventDefault(); const d=Object.fromEntries(new FormData(e.target));
-  try{const r=await api('/reliever-requests',{method:'POST',body:JSON.stringify(d)});msg(r.message||'Request submitted ✓');e.target.reset();if($('#requestName'))$('#requestName').value=user.name||'';if($('#requestStaffId'))$('#requestStaffId').value=user.staff_id||'';if($('#requestLocation'))$('#requestLocation').value=user.location_code||'';loadRelieverRequests();}catch(err){alert(err.message)}
-});
-
-// =====================================================
 
 // SECTION: FUNCTION loadRelievers
 
 // =====================================================
 
 async function loadRelievers(){
-  if(!isAdminRole && role!=='field_officer')return;
-  if(!$('#relieverRequestRows') && !$('#relieverStaff'))return;
+  if(!isAdminRole||!$('#relieverStaff'))return;
   try{
     const rows=await api('/relievers'); window._relievers=rows;
     const sel=$('#relieverStaff');
-    if(sel) sel.innerHTML='<option value="">Select Guard / Supervisor</option>'+rows.filter(x=>x.status==='active').map(x=>`<option value="${escape(x.staff_id)}">${escape(x.name)} — ${escape(x.staff_id)} (${label(x.role)})${x.is_reliever?' • Reliever':''}</option>`).join('');
+    sel.innerHTML='<option value="">Select Guard / Supervisor</option>'+rows.filter(x=>x.status==='active').map(x=>`<option value="${escape(x.staff_id)}">${escape(x.name)} — ${escape(x.staff_id)} (${label(x.role)})${x.is_reliever?' • Reliever':''}</option>`).join('');
     const b=$('#relieverRows');
     const active=rows.filter(x=>x.status==='active');
     const selected=active.filter(x=>Number(x.is_reliever)===1).length;
@@ -883,7 +828,6 @@ async function loadRelievers(){
     const rowMini=x=>`<tr><td>${escape(label(x.role))}</td><td>${escape(x.name)}</td><td>${escape(x.staff_id)}</td><td>${escape(x.location_code||'—')}</td></tr>`;
     if(selectedBox)selectedBox.innerHTML=active.filter(x=>Number(x.is_reliever)===1).map(rowMini).join('')||'<tr><td colspan="4">No selected relievers.</td></tr>';
     if(unselectedBox)unselectedBox.innerHTML=active.filter(x=>Number(x.is_reliever)!==1).map(rowMini).join('')||'<tr><td colspan="4">No unselected members.</td></tr>';
-    loadRelieverRequests();
   }catch(e){console.log(e.message)}
 }
 
@@ -1206,7 +1150,7 @@ if(!['admin','field_officer','officer'].includes(role)) $('#fine')?.querySelecto
 if(isAdminRole) $('#fine')?.querySelector('.fine-form')?.insertAdjacentHTML('afterend','<p>Admin may fine Guard or Supervisor.</p>');
 // Admin controls admin profile; Field Officer, Supervisor and Guard can submit their complete profile.
 if(role==='admin') ['name','post','salary','dob','department','location_code'].forEach(k=>$('#p_'+k)?.removeAttribute('disabled'));
-$('#p_dp_file')?.addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;const rd=new FileReader();rd.onload=()=>$('#p_dp').value=rd.result;rd.readAsDataURL(f)});
+$('#p_dp_file')?.addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{const v=rd.result;$('#p_dp').value=v;const img=$('#p_dp_preview');if(img)img.src=v;};rd.readAsDataURL(f)});
 
 $('#profileRoleFilter')?.addEventListener('change',()=>renderProfileRecords(staff));$('#profileLocationFilter')?.addEventListener('change',()=>renderProfileRecords(staff));
 $('#reportMonth')?.setAttribute('value',new Date().toISOString().slice(0,7));

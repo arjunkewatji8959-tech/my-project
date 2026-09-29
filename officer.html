@@ -6,7 +6,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>
       SNDF Officer Dashboard
     </title>
@@ -853,6 +853,13 @@
               <label>
                 Staff ID
                 <input id="p_staff_id" value="" disabled>
+              </label>
+              <label class="profile-dp-field">
+                Profile Photo / DP
+                <input id="p_dp_file" type="file" accept="image/*" capture="user">
+                <input id="p_dp" name="dp" type="hidden">
+                <img id="p_dp_preview" class="self-profile-dp-preview" src="assets-logo.png" alt="Profile DP">
+                <small class="muted-note">Mobile: Gallery se photo select karein ya camera se DP lein.</small>
               </label>
               <label>
                 Date of Birth

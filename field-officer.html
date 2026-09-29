@@ -6,7 +6,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>
       SNDF Dashboard
     </title>
@@ -63,9 +63,6 @@
         </button>
         <button data-view="point-transfer">
           📍 Point Transfer
-        </button>
-        <button data-view="reliever-requests">
-          📨 Reliever Requests
         </button>
         <button data-view="tasks">
           ✓ Task Management
@@ -846,19 +843,6 @@
           </div>
         </section>
         <!-- END SECTION: SECTION -->
-        <section id="reliever-requests" class="view hidden">
-          <h2>📨 Reliever Requests</h2>
-          <div class="panel">
-            <p class="muted-note">Aapke assigned locations ke Guard/Supervisor ki Holiday, Medical / Illness aur Emergency requests yahan dikhengi. <b>From Date → To Date</b> mein poori chhutti ki duration clear rahegi. Approval/rejection aur Reliever assignment Field Officer, Admin ya Master Admin kar sakte hain. Field Officer sirf apni assigned locations ke requests aur wahi ke active Relievers manage karega.</p>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Role</th><th>Name</th><th>ID</th><th>Location</th><th>Request</th><th>From Date → To Date</th><th>Reason</th><th>Status</th><th>Reliever</th><th>Action</th></tr></thead>
-                <tbody id="relieverRequestRows"><tr><td colspan="10">Loading…</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-        <!-- END SECTION: FIELD OFFICER RELIEVER REQUESTS -->
         <section id="tasks" class="view hidden">
           <h2>
             Task Management
@@ -986,6 +970,13 @@
               <label>
                 Staff ID
                 <input id="p_staff_id" value="" disabled>
+              </label>
+              <label class="profile-dp-field">
+                Profile Photo / DP
+                <input id="p_dp_file" type="file" accept="image/*" capture="user">
+                <input id="p_dp" name="dp" type="hidden">
+                <img id="p_dp_preview" class="self-profile-dp-preview" src="assets-logo.png" alt="Profile DP">
+                <small class="muted-note">Mobile: Gallery se photo select karein ya camera se DP lein.</small>
               </label>
               <label>
                 Date of Birth
