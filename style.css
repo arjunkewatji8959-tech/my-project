@@ -3610,17 +3610,3 @@ input:focus, select:focus, textarea:focus {
   .self-profile-dp-preview{width:96px;height:96px;}
   .profile-dp-field{grid-column:1/-1;}
 }
-
-/* SNDF ADMIN SIDEBAR DROPDOWN MENU */
-.sidebar .menu-group{margin:2px 0;border-radius:8px}
-.sidebar .menu-group summary{list-style:none;cursor:pointer;padding:11px 10px;border-radius:8px;color:#e6effa;font-size:13px;font-weight:600;user-select:none;display:flex;align-items:center;justify-content:space-between;gap:8px}
-.sidebar .menu-group summary::-webkit-details-marker{display:none}
-.sidebar .menu-group summary::after{content:'›';font-size:18px;line-height:1;transition:transform .18s ease;opacity:.8}
-.sidebar .menu-group[open] summary::after{transform:rotate(90deg)}
-.sidebar .menu-group summary:hover{background:#194f87}
-.sidebar .menu-subitems{margin:0 0 4px 8px;padding-left:6px;border-left:1px solid rgba(159,208,255,.28)}
-.sidebar .menu-subitems button{padding:9px 8px;font-size:12px;border-radius:6px}
-.sidebar .sidebar-home{margin-bottom:3px}
-.sidebar .menu-group .location-management-btn{padding:9px 8px;font-size:12px}
-.sidebar .menu-group .location-management-btn:hover{background:#194f87}
-@media (max-width:600px){.sidebar .menu-group summary{padding:12px 10px;font-size:13px}.sidebar .menu-subitems button{padding:10px 8px;font-size:12px}}
